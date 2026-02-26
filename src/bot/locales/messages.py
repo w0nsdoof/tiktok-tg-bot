@@ -27,6 +27,12 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
         "help_inline": "Send a video link to download it.",
         "queued": "Your request is queued, please wait...",
+        "downloading_photos": "Downloading photos...",
+        "sending_photos": "Sending photos...",
+        "error_slideshow_inline": (
+            "Slideshows can't be sent via inline mode. "
+            "Please send the link directly to the bot."
+        ),
     },
     "ru": {
         "downloading": "Скачиваю ваше видео...",
@@ -54,6 +60,12 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
         "help_inline": "Отправьте ссылку на видео для скачивания.",
         "queued": "Ваш запрос в очереди, подождите...",
+        "downloading_photos": "Скачиваю фотографии...",
+        "sending_photos": "Отправляю фотографии...",
+        "error_slideshow_inline": (
+            "Слайдшоу нельзя отправить через инлайн-режим. "
+            "Отправьте ссылку напрямую боту."
+        ),
     },
 }
 

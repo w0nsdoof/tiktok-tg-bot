@@ -1,7 +1,10 @@
 import asyncio
+import json
 import os
+import re
 import time
-from dataclasses import dataclass
+import urllib.request
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from uuid import uuid4
@@ -36,6 +39,14 @@ class VideoMetadata:
     duration: int | None
     file_size: int | None
     title: str | None
+    is_slideshow: bool = False
+
+
+@dataclass
+class SlideshowResult:
+    image_paths: list[str] = field(default_factory=list)
+    audio_path: str | None = None
+    title: str | None = None
 
 
 def _classify_error(error_msg: str) -> ErrorType:
@@ -49,6 +60,11 @@ def _classify_error(error_msg: str) -> ErrorType:
     return ErrorType.DOWNLOAD_ERROR
 
 
+def _normalize_tiktok_url(url: str) -> str:
+    """Convert /photo/ URLs to /video/ for yt-dlp compatibility."""
+    return re.sub(r"(tiktok\.com/@[^/]+)/photo/", r"\1/video/", url)
+
+
 def _extract_metadata_sync(url: str) -> VideoMetadata:
     ydl_opts = {
         "quiet": True,
@@ -57,13 +73,15 @@ def _extract_metadata_sync(url: str) -> VideoMetadata:
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+            info = ydl.extract_info(_normalize_tiktok_url(url), download=False)
             if info is None:
                 raise VideoDownloadError(ErrorType.NOT_VIDEO, "Could not extract video info")
+            is_slideshow = info.get("vcodec") == "none" and "/photo/" in url
             return VideoMetadata(
                 duration=info.get("duration"),
                 file_size=info.get("filesize") or info.get("filesize_approx"),
                 title=info.get("title"),
+                is_slideshow=is_slideshow,
             )
     except yt_dlp.utils.DownloadError as e:
         raise VideoDownloadError(_classify_error(str(e)), str(e)) from e
@@ -105,6 +123,122 @@ def _download_video_sync(url: str, output_dir: str) -> str:
             )
     except yt_dlp.utils.DownloadError as e:
         raise VideoDownloadError(_classify_error(str(e)), str(e)) from e
+
+
+def _scrape_slideshow_images(url: str) -> list[str]:
+    """Fetch image URLs from TikTok slideshow page HTML."""
+    video_url = _normalize_tiktok_url(url)
+    req = urllib.request.Request(video_url, headers={
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/131.0.0.0 Safari/537.36"
+        ),
+    })
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        html = resp.read().decode("utf-8", errors="replace")
+
+    match = re.search(
+        r'<script[^>]+id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>',
+        html,
+        re.DOTALL,
+    )
+    if not match:
+        return []
+
+    data = json.loads(match.group(1))
+    item = (
+        data.get("__DEFAULT_SCOPE__", {})
+        .get("webapp.video-detail", {})
+        .get("itemInfo", {})
+        .get("itemStruct", {})
+    )
+    image_post = item.get("imagePost")
+    if not image_post:
+        return []
+
+    image_urls: list[str] = []
+    for img in image_post.get("images", []):
+        url_list = img.get("imageURL", {}).get("urlList", [])
+        if url_list:
+            image_urls.append(url_list[0])
+    return image_urls
+
+
+def _download_slideshow_sync(url: str, output_dir: str) -> SlideshowResult:
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    unique_prefix = uuid4().hex[:8]
+
+    # 1. Scrape image URLs from the webpage
+    image_urls = _scrape_slideshow_images(url)
+    if not image_urls:
+        raise VideoDownloadError(ErrorType.DOWNLOAD_ERROR, "Could not extract slideshow images")
+
+    # 2. Download images
+    image_paths: list[str] = []
+    for i, img_url in enumerate(image_urls):
+        ext = "jpeg"
+        dest = os.path.join(output_dir, f"{unique_prefix}_slide_{i}.{ext}")
+        req = urllib.request.Request(img_url, headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/131.0.0.0 Safari/537.36"
+            ),
+            "Referer": "https://www.tiktok.com/",
+        })
+        with urllib.request.urlopen(req, timeout=15) as resp, open(dest, "wb") as f:
+            f.write(resp.read())
+        image_paths.append(dest)
+
+    # 3. Download audio via yt-dlp
+    audio_path: str | None = None
+    title: str | None = None
+    video_url = _normalize_tiktok_url(url)
+    audio_template = os.path.join(output_dir, f"{unique_prefix}_audio.%(ext)s")
+    ydl_opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "outtmpl": audio_template,
+        "format": "bestaudio/best",
+    }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=True)
+            if info:
+                title = info.get("title")
+                filename = ydl.prepare_filename(info)
+                if os.path.exists(filename):
+                    audio_path = filename
+    except yt_dlp.utils.DownloadError:
+        log.warning("slideshow.audio_download_failed", url=url)
+
+    return SlideshowResult(image_paths=image_paths, audio_path=audio_path, title=title)
+
+
+async def download_slideshow(url: str, output_dir: str) -> SlideshowResult:
+    start = time.monotonic()
+    log.info("slideshow_download.started", url=url)
+    try:
+        result = await asyncio.to_thread(_download_slideshow_sync, url, output_dir)
+        duration_ms = int((time.monotonic() - start) * 1000)
+        log.info(
+            "slideshow_download.completed",
+            duration_ms=duration_ms,
+            image_count=len(result.image_paths),
+            has_audio=result.audio_path is not None,
+            url=url,
+        )
+        return result
+    except VideoDownloadError as e:
+        duration_ms = int((time.monotonic() - start) * 1000)
+        log.warning(
+            "slideshow_download.failed",
+            error_type=e.error_type.value,
+            duration_ms=duration_ms,
+            url=url,
+        )
+        raise
 
 
 async def extract_metadata(url: str) -> VideoMetadata:

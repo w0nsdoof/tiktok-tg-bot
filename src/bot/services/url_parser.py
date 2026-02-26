@@ -4,6 +4,7 @@ from bot.models.request import Platform
 
 _PLATFORM_PATTERNS: list[tuple[re.Pattern[str], Platform]] = [
     (re.compile(r"https?://(?:www\.)?tiktok\.com/@[^/]+/video/\d+"), Platform.TIKTOK),
+    (re.compile(r"https?://(?:www\.)?tiktok\.com/@[^/]+/photo/\d+"), Platform.TIKTOK),
     (re.compile(r"https?://(?:www\.)?tiktok\.com/t/\w+"), Platform.TIKTOK),
     (re.compile(r"https?://vm\.tiktok\.com/\w+"), Platform.TIKTOK),
     (re.compile(r"https?://(?:www\.)?youtube\.com/shorts/[\w-]+"), Platform.YOUTUBE),

@@ -108,6 +108,12 @@ async def handle_inline_query(
         async with queue.acquire():
             metadata = await extract_metadata(url)
 
+            if metadata.is_slideshow:
+                await _safe_answer(
+                    query, [_error_article("error_slideshow_inline", lang)]
+                )
+                return
+
             if metadata.duration and metadata.duration > settings.max_duration:
                 await _safe_answer(query, [_error_article("error_too_long", lang)])
                 return
