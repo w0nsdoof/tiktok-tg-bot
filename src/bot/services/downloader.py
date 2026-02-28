@@ -68,19 +68,13 @@ def _normalize_tiktok_url(url: str) -> str:
 _COMMON_OPTS: dict[str, object] = {
     "quiet": True,
     "no_warnings": True,
-    "compat_opts": set(),
-    "allow_unplayable_formats": False,
+    "remote_components": ["ejs:github"],
 }
 
 
 def _ydl_opts(**overrides: object) -> dict[str, object]:
-    """Build yt-dlp options with remote JS components enabled."""
-    opts: dict[str, object] = {
-        **_COMMON_OPTS,
-        "remote_components": {"ejs": "github"},
-        **overrides,
-    }
-    return opts
+    """Build yt-dlp options with common defaults."""
+    return {**_COMMON_OPTS, **overrides}
 
 
 def _extract_metadata_sync(url: str) -> VideoMetadata:
