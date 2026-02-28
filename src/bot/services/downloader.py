@@ -65,12 +65,26 @@ def _normalize_tiktok_url(url: str) -> str:
     return re.sub(r"(tiktok\.com/@[^/]+)/photo/", r"\1/video/", url)
 
 
-def _extract_metadata_sync(url: str) -> VideoMetadata:
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
+_COMMON_OPTS: dict[str, object] = {
+    "quiet": True,
+    "no_warnings": True,
+    "compat_opts": set(),
+    "allow_unplayable_formats": False,
+}
+
+
+def _ydl_opts(**overrides: object) -> dict[str, object]:
+    """Build yt-dlp options with remote JS components enabled."""
+    opts: dict[str, object] = {
+        **_COMMON_OPTS,
+        "remote_components": {"ejs": "github"},
+        **overrides,
     }
+    return opts
+
+
+def _extract_metadata_sync(url: str) -> VideoMetadata:
+    ydl_opts = _ydl_opts(skip_download=True)
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(_normalize_tiktok_url(url), download=False)
@@ -92,11 +106,9 @@ def _download_video_sync(url: str, output_dir: str) -> str:
     # Use UUID prefix to avoid collisions when same video is requested concurrently
     unique_prefix = uuid4().hex[:8]
     output_template = os.path.join(output_dir, f"{unique_prefix}_%(id)s.%(ext)s")
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "outtmpl": output_template,
-        "format": (
+    ydl_opts = _ydl_opts(
+        outtmpl=output_template,
+        format=(
             "bestvideo[filesize<=50M][ext=mp4]+bestaudio[ext=m4a]/"
             "bestvideo[filesize<=50M]+bestaudio/"
             "best[filesize<=50M]/"
@@ -104,8 +116,8 @@ def _download_video_sync(url: str, output_dir: str) -> str:
             "best[filesize_approx<=50M]/"
             "best"
         ),
-        "merge_output_format": "mp4",
-    }
+        merge_output_format="mp4",
+    )
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -196,12 +208,10 @@ def _download_slideshow_sync(url: str, output_dir: str) -> SlideshowResult:
     title: str | None = None
     video_url = _normalize_tiktok_url(url)
     audio_template = os.path.join(output_dir, f"{unique_prefix}_audio.%(ext)s")
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "outtmpl": audio_template,
-        "format": "bestaudio/best",
-    }
+    ydl_opts = _ydl_opts(
+        outtmpl=audio_template,
+        format="bestaudio/best",
+    )
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=True)
