@@ -13,7 +13,6 @@ from telegram._inline.inlinequery import InlineQuery
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
-from bot.config import Settings
 from bot.locales.messages import get_message
 from bot.services.downloader import (
     ErrorType,
@@ -23,6 +22,7 @@ from bot.services.downloader import (
 )
 from bot.services.queue import DownloadQueue
 from bot.services.url_parser import extract_url
+from bot.services.user_store import UserStore
 
 log = structlog.get_logger()
 
@@ -70,12 +70,14 @@ async def handle_inline_query(
     user = query.from_user
     lang = user.language_code if user else None
 
-    settings: Settings = context.bot_data["settings"]
+    user_store: UserStore = context.bot_data["user_store"]
 
     # Whitelist check for inline mode
-    if settings.allowed_user_ids and user.id not in settings.allowed_user_ids:
+    if not user_store.is_allowed(user.id):
         await _safe_answer(query, [])
         return
+
+    settings = context.bot_data["settings"]
 
     start_time = time.monotonic()
     structlog.contextvars.bind_contextvars(

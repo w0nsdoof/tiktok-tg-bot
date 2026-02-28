@@ -25,6 +25,12 @@ htmlcov/
 # Downloads temp dir
 /tmp/tg-bot-downloads/
 
+# User data (whitelist)
+data/
+
+# Dump files
+*.dump
+
 # OS
 .DS_Store
 Thumbs.db

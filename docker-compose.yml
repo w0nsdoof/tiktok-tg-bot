@@ -5,6 +5,8 @@ services:
     env_file: .env
     volumes:
       - downloads:/tmp/tg-bot-downloads
+      - botdata:/app/src/data
 
 volumes:
   downloads:
+  botdata:
