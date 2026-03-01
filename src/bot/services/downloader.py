@@ -60,8 +60,27 @@ def _classify_error(error_msg: str) -> ErrorType:
     return ErrorType.DOWNLOAD_ERROR
 
 
+def _resolve_tiktok_shortlink(url: str) -> str:
+    """Follow redirects on TikTok short links to get the canonical URL."""
+    if re.match(r"https?://v[mt]\.tiktok\.com/", url):
+        req = urllib.request.Request(url, method="HEAD", headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/131.0.0.0 Safari/537.36"
+            ),
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return resp.url
+        except Exception:
+            pass
+    return url
+
+
 def _normalize_tiktok_url(url: str) -> str:
-    """Convert /photo/ URLs to /video/ for yt-dlp compatibility."""
+    """Resolve short links, then convert /photo/ URLs to /video/ for yt-dlp."""
+    url = _resolve_tiktok_shortlink(url)
     return re.sub(r"(tiktok\.com/@[^/]+)/photo/", r"\1/video/", url)
 
 
@@ -78,13 +97,14 @@ def _ydl_opts(**overrides: object) -> dict[str, object]:
 
 
 def _extract_metadata_sync(url: str) -> VideoMetadata:
+    resolved_url = _resolve_tiktok_shortlink(url)
+    normalized_url = re.sub(r"(tiktok\.com/@[^/]+)/photo/", r"\1/video/", resolved_url)
     ydl_opts = _ydl_opts(skip_download=True)
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(_normalize_tiktok_url(url), download=False)
+            info = ydl.extract_info(normalized_url, download=False)
             if info is None:
                 raise VideoDownloadError(ErrorType.NOT_VIDEO, "Could not extract video info")
-            resolved_url = info.get("webpage_url") or url
             is_slideshow = info.get("vcodec") == "none" and "/photo/" in resolved_url
             return VideoMetadata(
                 duration=info.get("duration"),
