@@ -19,11 +19,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "error_unknown": "An unexpected error occurred. Please try again later.",
         "help": (
             "Send me a video link from TikTok, YouTube Shorts, or Instagram Reels "
-            "and I'll download it for you.\n\n"
-            "Supported platforms:\n"
-            "- TikTok (tiktok.com, vm.tiktok.com)\n"
-            "- YouTube Shorts (youtube.com/shorts, youtu.be)\n"
-            "- Instagram Reels (instagram.com/reel)"
+            "and I'll download it for you."
         ),
         "help_inline": "Send a video link to download it.",
         "queued": "Your request is queued, please wait...",
@@ -80,11 +76,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "error_unknown": "Произошла непредвиденная ошибка. Попробуйте позже.",
         "help": (
             "Отправьте мне ссылку на видео из TikTok, YouTube Shorts или Instagram Reels, "
-            "и я скачаю его для вас.\n\n"
-            "Поддерживаемые платформы:\n"
-            "- TikTok (tiktok.com, vm.tiktok.com)\n"
-            "- YouTube Shorts (youtube.com/shorts, youtu.be)\n"
-            "- Instagram Reels (instagram.com/reel)"
+            "и я скачаю его для вас."
         ),
         "help_inline": "Отправьте ссылку на видео для скачивания.",
         "queued": "Ваш запрос в очереди, подождите...",
