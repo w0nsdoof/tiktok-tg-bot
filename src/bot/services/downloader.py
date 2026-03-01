@@ -84,7 +84,8 @@ def _extract_metadata_sync(url: str) -> VideoMetadata:
             info = ydl.extract_info(_normalize_tiktok_url(url), download=False)
             if info is None:
                 raise VideoDownloadError(ErrorType.NOT_VIDEO, "Could not extract video info")
-            is_slideshow = info.get("vcodec") == "none" and "/photo/" in url
+            resolved_url = info.get("webpage_url") or url
+            is_slideshow = info.get("vcodec") == "none" and "/photo/" in resolved_url
             return VideoMetadata(
                 duration=info.get("duration"),
                 file_size=info.get("filesize") or info.get("filesize_approx"),
