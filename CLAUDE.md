@@ -1,18 +1,36 @@
 # tiktok-tg-bot Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-02-24
+Auto-generated from all feature plans. Last updated: 2026-03-12
 
 ## Active Technologies
-- Python 3.12 + python-telegram-bot 21.x (21.11.1), yt-dlp, pydantic-settings, structlog (002-output-format-selection)
-- Temp files for downloads, JSON for whitelist (no changes needed) (002-output-format-selection)
-
-- Python 3.12 + python-telegram-bot 21.x, yt-dlp, pydantic-settings, structlog (001-video-download-bot)
+- Python 3.12 + python-telegram-bot 21.x (21.11.1), yt-dlp, pydantic-settings, structlog
 
 ## Project Structure
 
 ```text
-src/
+src/bot/
+├── handlers/
+│   ├── common.py       # Shared process_request() helper (format routing)
+│   ├── private.py      # Private chat handler
+│   ├── group.py        # Group chat handler
+│   ├── inline.py       # Inline mode handler
+│   └── admin.py        # Access management
+├── locales/
+│   └── messages.py     # EN/RU message catalog
+├── models/
+│   └── request.py      # Platform, OutputFormat, VideoRequest
+└── services/
+    ├── format_parser.py # Format keyword detection
+    ├── downloader.py    # yt-dlp download (video, audio, slideshow)
+    ├── url_parser.py    # URL extraction and platform detection
+    ├── queue.py         # Async download queue
+    └── user_store.py   # Persistent whitelist (JSON)
 tests/
+├── unit/
+│   ├── test_format_parser.py   # Keyword detection tests
+│   ├── test_downloader.py      # Audio download tests
+│   └── test_handler_routing.py # 6-branch routing matrix tests
+└── integration/
 ```
 
 ## Commands
@@ -27,9 +45,8 @@ tests/
 Python 3.12: Follow standard conventions
 
 ## Recent Changes
-- 002-output-format-selection: Added Python 3.12 + python-telegram-bot 21.x (21.11.1), yt-dlp, pydantic-settings, structlog
-
-- 001-video-download-bot: Added Python 3.12 + python-telegram-bot 21.x, yt-dlp, pydantic-settings, structlog
+- 002-output-format-selection: Added format keyword detection (audio/images), audio extraction via FFmpegExtractAudio, shared handler logic, 40 unit tests
+- 001-video-download-bot: Initial bot with video/slideshow download, whitelist, inline mode
 
 <!-- MANUAL ADDITIONS START -->
 
