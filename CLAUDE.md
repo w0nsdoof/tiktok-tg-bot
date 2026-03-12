@@ -3,6 +3,8 @@
 Auto-generated from all feature plans. Last updated: 2026-02-24
 
 ## Active Technologies
+- Python 3.12 + python-telegram-bot 21.x (21.11.1), yt-dlp, pydantic-settings, structlog (002-output-format-selection)
+- Temp files for downloads, JSON for whitelist (no changes needed) (002-output-format-selection)
 
 - Python 3.12 + python-telegram-bot 21.x, yt-dlp, pydantic-settings, structlog (001-video-download-bot)
 
@@ -25,6 +27,7 @@ tests/
 Python 3.12: Follow standard conventions
 
 ## Recent Changes
+- 002-output-format-selection: Added Python 3.12 + python-telegram-bot 21.x (21.11.1), yt-dlp, pydantic-settings, structlog
 
 - 001-video-download-bot: Added Python 3.12 + python-telegram-bot 21.x, yt-dlp, pydantic-settings, structlog
 

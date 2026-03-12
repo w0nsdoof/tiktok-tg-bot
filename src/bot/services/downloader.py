@@ -26,6 +26,7 @@ class ErrorType(Enum):
     PLATFORM_DOWN = "platform_down"
     NOT_VIDEO = "not_video"
     DOWNLOAD_ERROR = "download_error"
+    NO_AUDIO = "no_audio"
 
 
 class VideoDownloadError(DownloadError):
@@ -47,6 +48,13 @@ class SlideshowResult:
     image_paths: list[str] = field(default_factory=list)
     audio_path: str | None = None
     title: str | None = None
+
+
+@dataclass
+class AudioResult:
+    audio_path: str
+    title: str | None = None
+    duration: int | None = None
 
 
 def _classify_error(error_msg: str) -> ErrorType:
@@ -192,7 +200,49 @@ def _scrape_slideshow_images(url: str) -> list[str]:
     return image_urls
 
 
-def _download_slideshow_sync(url: str, output_dir: str) -> SlideshowResult:
+def _download_audio_sync(url: str, output_dir: str) -> AudioResult:
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    unique_prefix = uuid4().hex[:8]
+    audio_template = os.path.join(output_dir, f"{unique_prefix}_audio.%(ext)s")
+    normalized_url = _normalize_tiktok_url(url)
+    ydl_opts = _ydl_opts(
+        outtmpl=audio_template,
+        format="bestaudio/best",
+        postprocessors=[{
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "m4a",
+        }],
+    )
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(normalized_url, download=True)
+            if info is None:
+                raise VideoDownloadError(
+                    ErrorType.DOWNLOAD_ERROR, "Audio download returned no info"
+                )
+            title = info.get("title")
+            duration = info.get("duration")
+            # After FFmpegExtractAudio, the file extension changes to m4a
+            filename = ydl.prepare_filename(info)
+            base, _ = os.path.splitext(filename)
+            m4a_path = base + ".m4a"
+            if os.path.exists(m4a_path):
+                return AudioResult(audio_path=m4a_path, title=title, duration=duration)
+            if os.path.exists(filename):
+                return AudioResult(audio_path=filename, title=title, duration=duration)
+            raise VideoDownloadError(
+                ErrorType.DOWNLOAD_ERROR, "Audio file not found after extraction"
+            )
+    except yt_dlp.utils.DownloadError as e:
+        error_msg = str(e).lower()
+        if "audio" in error_msg and ("no" in error_msg or "not" in error_msg):
+            raise VideoDownloadError(ErrorType.NO_AUDIO, str(e)) from e
+        raise VideoDownloadError(_classify_error(str(e)), str(e)) from e
+
+
+def _download_slideshow_sync(
+    url: str, output_dir: str, *, include_audio: bool = True
+) -> SlideshowResult:
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     unique_prefix = uuid4().hex[:8]
 
@@ -218,34 +268,62 @@ def _download_slideshow_sync(url: str, output_dir: str) -> SlideshowResult:
             f.write(resp.read())
         image_paths.append(dest)
 
-    # 3. Download audio via yt-dlp
+    # 3. Download audio via yt-dlp (if requested)
     audio_path: str | None = None
     title: str | None = None
-    video_url = _normalize_tiktok_url(url)
-    audio_template = os.path.join(output_dir, f"{unique_prefix}_audio.%(ext)s")
-    ydl_opts = _ydl_opts(
-        outtmpl=audio_template,
-        format="bestaudio/best",
-    )
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=True)
-            if info:
-                title = info.get("title")
-                filename = ydl.prepare_filename(info)
-                if os.path.exists(filename):
-                    audio_path = filename
-    except yt_dlp.utils.DownloadError:
-        log.warning("slideshow.audio_download_failed", url=url)
+    if include_audio:
+        video_url = _normalize_tiktok_url(url)
+        audio_template = os.path.join(output_dir, f"{unique_prefix}_audio.%(ext)s")
+        ydl_opts = _ydl_opts(
+            outtmpl=audio_template,
+            format="bestaudio/best",
+        )
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(video_url, download=True)
+                if info:
+                    title = info.get("title")
+                    filename = ydl.prepare_filename(info)
+                    if os.path.exists(filename):
+                        audio_path = filename
+        except yt_dlp.utils.DownloadError:
+            log.warning("slideshow.audio_download_failed", url=url)
 
     return SlideshowResult(image_paths=image_paths, audio_path=audio_path, title=title)
 
 
-async def download_slideshow(url: str, output_dir: str) -> SlideshowResult:
+async def download_audio(url: str, output_dir: str) -> AudioResult:
+    start = time.monotonic()
+    log.info("audio_download.started", url=url)
+    try:
+        result = await asyncio.to_thread(_download_audio_sync, url, output_dir)
+        duration_ms = int((time.monotonic() - start) * 1000)
+        log.info(
+            "audio_download.completed",
+            duration_ms=duration_ms,
+            url=url,
+        )
+        return result
+    except VideoDownloadError as e:
+        duration_ms = int((time.monotonic() - start) * 1000)
+        log.warning(
+            "audio_download.failed",
+            error_type=e.error_type.value,
+            duration_ms=duration_ms,
+            url=url,
+        )
+        raise
+
+
+async def download_slideshow(
+    url: str, output_dir: str, *, include_audio: bool = True
+) -> SlideshowResult:
     start = time.monotonic()
     log.info("slideshow_download.started", url=url)
     try:
-        result = await asyncio.to_thread(_download_slideshow_sync, url, output_dir)
+        result = await asyncio.to_thread(
+            _download_slideshow_sync, url, output_dir, include_audio=include_audio
+        )
         duration_ms = int((time.monotonic() - start) * 1000)
         log.info(
             "slideshow_download.completed",

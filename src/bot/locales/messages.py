@@ -19,10 +19,19 @@ MESSAGES: dict[str, dict[str, str]] = {
         "error_unknown": "An unexpected error occurred. Please try again later.",
         "help": (
             "Send me a video link from TikTok, YouTube Shorts, or Instagram Reels "
-            "and I'll download it for you."
+            "and I'll download it for you.\n\n"
+            'Add "audio" or "mp3" to get the sound only.\n'
+            'Add "images" or "photos" to get slideshow pictures without audio.'
         ),
         "help_inline": "Send a video link to download it.",
         "queued": "Your request is queued, please wait...",
+        "downloading_audio": "Downloading audio...",
+        "sending_audio": "Sending audio...",
+        "error_no_audio": "This content has no audio track.",
+        "error_not_slideshow": (
+            "This is a video, not a slideshow — images can't be extracted. "
+            'Try "audio" to get the sound.'
+        ),
         "downloading_photos": "Downloading photos...",
         "sending_photos": "Sending photos...",
         "error_slideshow_inline": (
@@ -76,10 +85,19 @@ MESSAGES: dict[str, dict[str, str]] = {
         "error_unknown": "Произошла непредвиденная ошибка. Попробуйте позже.",
         "help": (
             "Отправьте мне ссылку на видео из TikTok, YouTube Shorts или Instagram Reels, "
-            "и я скачаю его для вас."
+            "и я скачаю его для вас.\n\n"
+            "Добавьте «аудио» или «звук», чтобы получить только звук.\n"
+            "Добавьте «картинки» или «фото», чтобы получить фотографии слайдшоу без аудио."
         ),
         "help_inline": "Отправьте ссылку на видео для скачивания.",
         "queued": "Ваш запрос в очереди, подождите...",
+        "downloading_audio": "Скачиваю аудио...",
+        "sending_audio": "Отправляю аудио...",
+        "error_no_audio": "В этом контенте нет аудиодорожки.",
+        "error_not_slideshow": (
+            "Это видео, а не слайдшоу — изображения нельзя извлечь. "
+            "Попробуйте «аудио», чтобы получить звук."
+        ),
         "downloading_photos": "Скачиваю фотографии...",
         "sending_photos": "Отправляю фотографии...",
         "error_slideshow_inline": (

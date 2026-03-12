@@ -19,6 +19,12 @@ class RequestStatus(Enum):
     FAILED = "failed"
 
 
+class OutputFormat(Enum):
+    DEFAULT = "default"
+    AUDIO = "audio"
+    IMAGES = "images"
+
+
 class ChatType(Enum):
     PRIVATE = "private"
     GROUP = "group"
