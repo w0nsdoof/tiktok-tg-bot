@@ -3,10 +3,12 @@ services:
     build: .
     restart: unless-stopped
     env_file: .env
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
     volumes:
       - downloads:/tmp/tg-bot-downloads
       - botdata:/app/src/data
-
 volumes:
   downloads:
   botdata:
