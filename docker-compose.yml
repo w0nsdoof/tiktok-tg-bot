@@ -6,6 +6,12 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: 768m
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os,time,sys; sys.exit(0 if time.time()-os.path.getmtime('/app/src/data/heartbeat')<90 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     volumes:
       - downloads:/tmp/tg-bot-downloads
       - botdata:/app/src/data
