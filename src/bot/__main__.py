@@ -22,6 +22,7 @@ from bot.handlers.admin import (
 from bot.handlers.group import handle_group_message
 from bot.handlers.inline import handle_inline_query
 from bot.handlers.private import handle_help, handle_private_message, handle_start
+from bot.health import heartbeat_job
 from bot.logging import setup_logging
 from bot.services.user_store import UserStore
 
@@ -107,6 +108,8 @@ def main() -> None:
         max_concurrent_downloads=settings.max_concurrent_downloads,
         log_level=settings.log_level,
     )
+    assert app.job_queue is not None  # job-queue extra is a hard dependency
+    app.job_queue.run_repeating(heartbeat_job, interval=30, first=0)
     app.run_polling()
     log.info("bot.shutdown")
 
