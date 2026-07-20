@@ -95,6 +95,38 @@ ORDER BY n DESC
 LIMIT 5
 """
 
+_TOP_TAGS = """
+SELECT tag AS name, count(*) AS n
+FROM download_events e
+JOIN videos v ON v.platform = e.platform AND v.video_id = e.video_id
+CROSS JOIN LATERAL unnest(v.hashtags) AS tag
+WHERE e.status = 'ok'
+GROUP BY tag
+ORDER BY n DESC
+LIMIT $1
+"""
+
+_TOP_CREATORS = """
+SELECT coalesce(v.author_handle, v.author_name, 'unknown') AS name, count(*) AS n
+FROM download_events e
+JOIN videos v ON v.platform = e.platform AND v.video_id = e.video_id
+WHERE e.status = 'ok'
+GROUP BY 1
+ORDER BY n DESC
+LIMIT $1
+"""
+
+_TAG_VIDEOS = """
+SELECT v.title,
+       coalesce(v.author_handle, v.author_name, 'unknown') AS creator,
+       v.like_count,
+       v.url
+FROM videos v
+WHERE $1 = ANY(v.hashtags)
+ORDER BY v.like_count DESC NULLS LAST
+LIMIT $2
+"""
+
 
 @dataclass
 class UserStats:
@@ -115,6 +147,14 @@ class GlobalStats:
     platforms: list[tuple[str, int]]
     creators: list[tuple[str, int]]
     hashtags: list[tuple[str, int]]
+
+
+@dataclass
+class TagVideo:
+    title: str | None
+    creator: str
+    like_count: int | None
+    url: str
 
 
 class StatsService:
@@ -161,3 +201,23 @@ class StatsService:
             creators=[(r["name"], r["n"]) for r in creators],
             hashtags=[(r["name"], r["n"]) for r in hashtags],
         )
+
+    async def top_tags(self, limit: int) -> list[tuple[str, int]]:
+        rows = await self._fetch(_TOP_TAGS, limit)
+        return [(r["name"], r["n"]) for r in rows]
+
+    async def top_creators(self, limit: int) -> list[tuple[str, int]]:
+        rows = await self._fetch(_TOP_CREATORS, limit)
+        return [(r["name"], r["n"]) for r in rows]
+
+    async def top_videos_for_tag(self, tag: str, limit: int) -> list[TagVideo]:
+        rows = await self._fetch(_TAG_VIDEOS, tag, limit)
+        return [
+            TagVideo(
+                title=r["title"],
+                creator=r["creator"],
+                like_count=r["like_count"],
+                url=r["url"],
+            )
+            for r in rows
+        ]

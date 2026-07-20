@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 from bot.services.analytics import Analytics
-from bot.services.stats import GlobalStats, StatsService, UserStats
+from bot.services.stats import GlobalStats, StatsService, TagVideo, UserStats
 
 
 class _FakeAcquire:
@@ -95,3 +95,30 @@ class TestGlobalStats:
             creators=[("@cat", 5)],
             hashtags=[("fyp", 7)],
         )
+
+
+class TestTops:
+    async def test_top_tags(self):
+        conn = AsyncMock()
+        conn.fetch.return_value = [{"name": "fyp", "n": 9}, {"name": "cat", "n": 4}]
+        rows = await _service_with(conn).top_tags(10)
+        assert rows == [("fyp", 9), ("cat", 4)]
+        assert conn.fetch.await_args.args[-1] == 10  # limit is parameterized
+
+    async def test_top_creators(self):
+        conn = AsyncMock()
+        conn.fetch.return_value = [{"name": "@cat", "n": 5}]
+        assert await _service_with(conn).top_creators(10) == [("@cat", 5)]
+
+    async def test_top_videos_for_tag(self):
+        conn = AsyncMock()
+        conn.fetch.return_value = [
+            {"title": "Cat", "creator": "@cat", "like_count": 100, "url": "https://t/1"},
+            {"title": None, "creator": "@dog", "like_count": None, "url": "https://t/2"},
+        ]
+        videos = await _service_with(conn).top_videos_for_tag("fyp", 5)
+        assert videos == [
+            TagVideo(title="Cat", creator="@cat", like_count=100, url="https://t/1"),
+            TagVideo(title=None, creator="@dog", like_count=None, url="https://t/2"),
+        ]
+        assert conn.fetch.await_args.args[1] == "fyp"
