@@ -172,3 +172,67 @@ async def test_inline_error_records_event():
     assert event.chat_type == "inline"
     assert event.output_format == "default"
     assert event.user_id == 42
+
+
+@pytest.mark.asyncio
+async def test_inline_slideshow_records_not_slideshow():
+    from bot.handlers.inline import handle_inline_query
+
+    ctx = _make_context()
+    ctx.bot_data["user_store"] = MagicMock()
+    ctx.bot_data["user_store"].is_allowed.return_value = True
+
+    update = MagicMock()
+    query = update.inline_query
+    query.from_user.id = 42
+    query.from_user.language_code = "en"
+    query.query = VIDEO_URL
+    query.answer = AsyncMock()
+
+    slideshow_metadata = VideoMetadata(
+        duration=30, file_size=1000, title="Test", is_slideshow=True, info=VIDEO_INFO
+    )
+    with (
+        patch("bot.handlers.inline.extract_url", return_value=(VIDEO_URL, Platform.TIKTOK)),
+        patch("bot.handlers.inline.extract_metadata", return_value=slideshow_metadata),
+    ):
+        await handle_inline_query(update, ctx)
+
+    event, _ = _recorded_event(ctx)
+    assert event.status == "not_slideshow"
+    assert event.chat_type == "inline"
+    assert event.video_id == "123"
+
+
+@pytest.mark.asyncio
+async def test_inline_missing_file_id_records_download_error():
+    from bot.handlers.inline import handle_inline_query
+
+    ctx = _make_context()
+    ctx.bot_data["user_store"] = MagicMock()
+    ctx.bot_data["user_store"].is_allowed.return_value = True
+
+    sent_message = AsyncMock()
+    sent_message.video = None
+    ctx.bot.send_video = AsyncMock(return_value=sent_message)
+
+    update = MagicMock()
+    query = update.inline_query
+    query.from_user.id = 42
+    query.from_user.language_code = "en"
+    query.query = VIDEO_URL
+    query.answer = AsyncMock()
+
+    with (
+        patch("bot.handlers.inline.extract_url", return_value=(VIDEO_URL, Platform.TIKTOK)),
+        patch("bot.handlers.inline.extract_metadata", return_value=VIDEO_METADATA),
+        patch("bot.handlers.inline.download_video", AsyncMock(return_value="/tmp/test/video.mp4")),
+        patch("bot.handlers.inline.os.path.getsize", return_value=1000),
+        patch("bot.handlers.inline.os.path.exists", return_value=False),
+        patch("builtins.open", MagicMock()),
+    ):
+        await handle_inline_query(update, ctx)
+
+    event, _ = _recorded_event(ctx)
+    assert event.status == "download_error"
+    assert event.chat_type == "inline"
