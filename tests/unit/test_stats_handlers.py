@@ -164,3 +164,14 @@ class TestTop:
         update = _update()
         await handle_top(update, _context(stats, args=["tags"]))
         assert "unavailable" in _reply_text(update).lower()
+
+    async def test_long_titles_are_truncated(self):
+        stats = MagicMock()
+        stats.enabled = True
+        video = TagVideo(title="X" * 200, creator="@cat", like_count=1, url="https://t/1")
+        stats.top_videos_for_tag = AsyncMock(return_value=[video])
+        update = _update()
+        await handle_top(update, _context(stats, args=["#fyp"]))
+        text = _reply_text(update)
+        assert "X" * 80 in text
+        assert "X" * 81 not in text

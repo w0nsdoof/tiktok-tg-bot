@@ -91,7 +91,7 @@ async def handle_top(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             videos = await stats.top_videos_for_tag(tag, 5)
             if videos:
                 items = "\n".join(
-                    f"{i}. {v.title or '?'} — {v.creator}, "
+                    f"{i}. {(v.title or '?')[:80]} — {v.creator}, "
                     f"❤ {v.like_count if v.like_count is not None else '?'}\n{v.url}"
                     for i, v in enumerate(videos, 1)
                 )

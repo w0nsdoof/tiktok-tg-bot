@@ -61,6 +61,7 @@ _GLOBAL_TOP_USERS = """
 SELECT user_id, count(*) FILTER (WHERE status = 'ok') AS n
 FROM download_events
 GROUP BY user_id
+HAVING count(*) FILTER (WHERE status = 'ok') > 0
 ORDER BY n DESC
 LIMIT 5
 """
