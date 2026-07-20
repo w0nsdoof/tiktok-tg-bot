@@ -8,6 +8,7 @@ dependencies = [
     "yt-dlp",
     "pydantic-settings>=2.0",
     "structlog>=24.0",
+    "asyncpg>=0.30",
 ]
 
 [project.optional-dependencies]
@@ -50,4 +51,8 @@ packages = ["bot"]
 
 [[tool.mypy.overrides]]
 module = "yt_dlp.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "asyncpg.*"
 ignore_missing_imports = true

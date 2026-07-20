@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     bot_token: SecretStr
+    analytics_dsn: SecretStr | None = None
     admin_user_ids: list[int] = []
     allowed_user_ids: list[int] = []
     max_duration: int = 300
