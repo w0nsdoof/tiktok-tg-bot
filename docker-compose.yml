@@ -15,6 +15,12 @@ services:
     volumes:
       - downloads:/tmp/tg-bot-downloads
       - botdata:/app/src/data
+    networks:
+      - default
+      - db
 volumes:
   downloads:
   botdata:
+networks:
+  db:
+    external: true

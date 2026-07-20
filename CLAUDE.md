@@ -18,13 +18,15 @@ src/bot/
 ├── locales/
 │   └── messages.py     # EN/RU message catalog
 ├── models/
-│   └── request.py      # Platform, OutputFormat, VideoRequest
+│   ├── request.py      # Platform, OutputFormat, VideoRequest
+│   └── video_info.py   # VideoInfo (parsed yt-dlp metadata)
 └── services/
     ├── format_parser.py # Format keyword detection
     ├── downloader.py    # yt-dlp download (video, audio, slideshow)
     ├── url_parser.py    # URL extraction and platform detection
     ├── queue.py         # Async download queue
-    └── user_store.py   # Persistent whitelist (JSON)
+    ├── user_store.py    # Persistent whitelist (JSON)
+    └── analytics.py     # Download events + video metadata into Postgres
 tests/
 ├── unit/
 │   ├── test_format_parser.py   # Keyword detection tests
@@ -45,6 +47,7 @@ tests/
 Python 3.12: Follow standard conventions
 
 ## Recent Changes
+- 003-analytics-data-layer: download events + video metadata into shared Postgres (asyncpg, fire-and-forget)
 - 002-output-format-selection: Added format keyword detection (audio/images), audio extraction via FFmpegExtractAudio, shared handler logic, 40 unit tests
 - 001-video-download-bot: Initial bot with video/slideshow download, whitelist, inline mode
 

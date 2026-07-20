@@ -24,6 +24,7 @@ from bot.handlers.inline import handle_inline_query
 from bot.handlers.private import handle_help, handle_private_message, handle_start
 from bot.health import heartbeat_job
 from bot.logging import setup_logging
+from bot.services.analytics import Analytics
 from bot.services.user_store import UserStore
 
 
@@ -47,10 +48,22 @@ def main() -> None:
             msg="No admin users configured — nobody can approve access requests",
         )
 
+    analytics = Analytics(
+        settings.analytics_dsn.get_secret_value() if settings.analytics_dsn else None
+    )
+
+    async def _post_init(app_: object) -> None:
+        await analytics.ensure_schema()
+
+    async def _post_shutdown(app_: object) -> None:
+        await analytics.close()
+
     app = (
         Application.builder()
         .token(settings.bot_token.get_secret_value())
         .concurrent_updates(True)
+        .post_init(_post_init)
+        .post_shutdown(_post_shutdown)
         .build()
     )
 
@@ -60,6 +73,7 @@ def main() -> None:
     app.bot_data["settings"] = settings
     app.bot_data["queue"] = DownloadQueue(settings.max_concurrent_downloads)
     app.bot_data["user_store"] = user_store
+    app.bot_data["analytics"] = analytics
 
     # Build dynamic filters
     whitelist = WhitelistFilter(user_store)
@@ -107,6 +121,7 @@ def main() -> None:
         admins=user_store.admin_count,
         max_concurrent_downloads=settings.max_concurrent_downloads,
         log_level=settings.log_level,
+        analytics_enabled=analytics.enabled,
     )
     assert app.job_queue is not None  # job-queue extra is a hard dependency
     app.job_queue.run_repeating(heartbeat_job, interval=30, first=0)

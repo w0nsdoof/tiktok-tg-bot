@@ -27,6 +27,12 @@ cp .env.example .env  # set BOT_TOKEN, ADMIN_USER_IDS
 cd src && uv run python -m bot
 ```
 
+## Configuration
+
+| Variable | Required | Description |
+|---|---|---|
+| `ANALYTICS_DSN` | No | Postgres DSN for usage analytics (e.g. `postgresql://user:pass@host:5432/dbname`); unset = analytics disabled |
+
 ## Deployment
 
 See [DEPLOYMENT.md](DEPLOYMENT.md).
