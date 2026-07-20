@@ -12,6 +12,8 @@ from uuid import uuid4
 import structlog
 import yt_dlp
 
+from bot.models.video_info import VideoInfo
+
 log = structlog.get_logger()
 
 
@@ -41,6 +43,7 @@ class VideoMetadata:
     file_size: int | None
     title: str | None
     is_slideshow: bool = False
+    info: VideoInfo | None = None
 
 
 @dataclass
@@ -114,11 +117,17 @@ def _extract_metadata_sync(url: str) -> VideoMetadata:
             if info is None:
                 raise VideoDownloadError(ErrorType.NOT_VIDEO, "Could not extract video info")
             is_slideshow = info.get("vcodec") == "none" and "/photo/" in resolved_url
+            video_info: VideoInfo | None = None
+            try:
+                video_info = VideoInfo.from_info_dict(info, normalized_url)
+            except Exception:
+                log.warning("metadata.video_info_failed", exc_info=True)
             return VideoMetadata(
                 duration=info.get("duration"),
                 file_size=info.get("filesize") or info.get("filesize_approx"),
                 title=info.get("title"),
                 is_slideshow=is_slideshow,
+                info=video_info,
             )
     except yt_dlp.utils.DownloadError as e:
         raise VideoDownloadError(_classify_error(str(e)), str(e)) from e

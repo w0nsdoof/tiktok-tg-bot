@@ -8,6 +8,7 @@ from bot.services.downloader import (
     ErrorType,
     VideoDownloadError,
     _download_audio_sync,
+    _extract_metadata_sync,
 )
 
 
@@ -147,3 +148,49 @@ class TestDownloadAudioSync:
             )
 
         assert os.path.exists(result.audio_path)
+
+
+class TestMetadataVideoInfo:
+    def _fake_ydl(self, info):
+        ydl = MagicMock()
+        ydl.extract_info.return_value = info
+        cm = MagicMock()
+        cm.__enter__ = MagicMock(return_value=ydl)
+        cm.__exit__ = MagicMock(return_value=False)
+        return cm
+
+    def test_info_populated(self):
+        info = {
+            "id": "123",
+            "extractor_key": "TikTok",
+            "title": "t",
+            "description": "#fyp",
+            "duration": 10,
+            "uploader": "u",
+            "channel": "U",
+        }
+        with patch(
+            "bot.services.downloader.yt_dlp.YoutubeDL",
+            return_value=self._fake_ydl(info),
+        ):
+            meta = _extract_metadata_sync("https://www.tiktok.com/@u/video/123")
+        assert meta.info is not None
+        assert meta.info.video_id == "123"
+        assert meta.info.platform == "tiktok"
+        assert meta.info.hashtags == ["fyp"]
+
+    def test_normalization_failure_returns_none_info(self):
+        info = {"id": "123", "extractor_key": "TikTok", "duration": 10}
+        with (
+            patch(
+                "bot.services.downloader.yt_dlp.YoutubeDL",
+                return_value=self._fake_ydl(info),
+            ),
+            patch(
+                "bot.services.downloader.VideoInfo.from_info_dict",
+                side_effect=RuntimeError("boom"),
+            ),
+        ):
+            meta = _extract_metadata_sync("https://www.tiktok.com/@u/video/123")
+        assert meta.info is None
+        assert meta.duration == 10  # metadata itself still works
