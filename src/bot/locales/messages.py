@@ -22,6 +22,8 @@ MESSAGES: dict[str, dict[str, str]] = {
             "and I'll download it for you.\n\n"
             'Add "audio" or "mp3" to get the sound only.\n'
             'Add "images" or "photos" to get slideshow pictures without audio.'
+            "\n\n/stats — your download stats\n"
+            "/top tags | creators | #hashtag — leaderboards"
         ),
         "help_inline": "Send a video link to download it.",
         "queued": "Your request is queued, please wait...",
@@ -66,6 +68,37 @@ MESSAGES: dict[str, dict[str, str]] = {
         "forward_hidden_user": (
             "Cannot add this user — their identity is hidden in the forwarded message."
         ),
+        "stats_unavailable": "Stats are unavailable right now. Please try again later.",
+        "stats_empty": "No downloads recorded yet — send me a link first!",
+        "stats_personal": (
+            "📊 Your stats\n"
+            "Requests: {requests}\n"
+            "Successful downloads: {downloads}\n"
+            "First use: {since}\n\n"
+            "Top platforms:\n{platforms}\n\n"
+            "Top creators:\n{creators}\n\n"
+            "Top hashtags:\n{hashtags}"
+        ),
+        "stats_global": (
+            "📊 Global stats\n"
+            "Users: {users}\n"
+            "Requests: {requests}\n"
+            "Successful downloads: {downloads}\n\n"
+            "Top users:\n{top_users}\n\n"
+            "Top platforms:\n{platforms}\n\n"
+            "Top creators:\n{creators}\n\n"
+            "Top hashtags:\n{hashtags}"
+        ),
+        "top_usage": (
+            "Usage:\n"
+            "/top tags — top hashtags\n"
+            "/top creators — top creators\n"
+            "/top #hashtag — top videos for a hashtag"
+        ),
+        "top_tags_title": "🏷 Top hashtags:\n{items}",
+        "top_creators_title": "👤 Top creators:\n{items}",
+        "top_videos_title": "🔥 Top videos for #{tag}:\n{items}",
+        "top_empty": "No data yet.",
     },
     "ru": {
         "downloading": "Скачиваю ваше видео...",
@@ -88,6 +121,8 @@ MESSAGES: dict[str, dict[str, str]] = {
             "и я скачаю его для вас.\n\n"
             "Добавьте «аудио» или «звук», чтобы получить только звук.\n"
             "Добавьте «картинки» или «фото», чтобы получить фотографии слайдшоу без аудио."
+            "\n\n/stats — ваша статистика загрузок\n"
+            "/top tags | creators | #хэштег — рейтинги"
         ),
         "help_inline": "Отправьте ссылку на видео для скачивания.",
         "queued": "Ваш запрос в очереди, подождите...",
@@ -133,6 +168,37 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Невозможно добавить пользователя — "
             "его личность скрыта в пересланном сообщении."
         ),
+        "stats_unavailable": "Статистика сейчас недоступна. Попробуйте позже.",
+        "stats_empty": "Пока нет загрузок — сначала отправьте мне ссылку!",
+        "stats_personal": (
+            "📊 Ваша статистика\n"
+            "Запросов: {requests}\n"
+            "Успешных загрузок: {downloads}\n"
+            "Первое использование: {since}\n\n"
+            "Топ платформ:\n{platforms}\n\n"
+            "Топ авторов:\n{creators}\n\n"
+            "Топ хэштегов:\n{hashtags}"
+        ),
+        "stats_global": (
+            "📊 Общая статистика\n"
+            "Пользователей: {users}\n"
+            "Запросов: {requests}\n"
+            "Успешных загрузок: {downloads}\n\n"
+            "Топ пользователей:\n{top_users}\n\n"
+            "Топ платформ:\n{platforms}\n\n"
+            "Топ авторов:\n{creators}\n\n"
+            "Топ хэштегов:\n{hashtags}"
+        ),
+        "top_usage": (
+            "Использование:\n"
+            "/top tags — топ хэштегов\n"
+            "/top creators — топ авторов\n"
+            "/top #хэштег — топ видео по хэштегу"
+        ),
+        "top_tags_title": "🏷 Топ хэштегов:\n{items}",
+        "top_creators_title": "👤 Топ авторов:\n{items}",
+        "top_videos_title": "🔥 Топ видео по #{tag}:\n{items}",
+        "top_empty": "Пока нет данных.",
     },
 }
 
