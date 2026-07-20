@@ -14,7 +14,8 @@ src/bot/
 │   ├── private.py      # Private chat handler
 │   ├── group.py        # Group chat handler
 │   ├── inline.py       # Inline mode handler
-│   └── admin.py        # Access management
+│   ├── admin.py        # Access management
+│   └── stats.py        # /stats and /top commands
 ├── locales/
 │   └── messages.py     # EN/RU message catalog
 ├── models/
@@ -26,7 +27,8 @@ src/bot/
     ├── url_parser.py    # URL extraction and platform detection
     ├── queue.py         # Async download queue
     ├── user_store.py    # Persistent whitelist (JSON)
-    └── analytics.py     # Download events + video metadata into Postgres
+    ├── analytics.py     # Download events + video metadata into Postgres
+    └── stats.py         # Read-side analytics queries (StatsService)
 tests/
 ├── unit/
 │   ├── test_format_parser.py   # Keyword detection tests
@@ -39,7 +41,7 @@ tests/
 
 - Install deps: `uv sync`
 - Run bot: `cd src && uv run python -m bot`
-- Tests: `cd src && uv run pytest`
+- Tests: `uv run pytest` (from repo root)
 - Lint: `cd src && uv run ruff check .`
 
 ## Code Style
@@ -47,6 +49,7 @@ tests/
 Python 3.12: Follow standard conventions
 
 ## Recent Changes
+- 004-analytics-surfaces: /stats + /top commands (StatsService reads via shared asyncpg pool), Grafana bot dashboard + tiktokbot datasource
 - 003-analytics-data-layer: download events + video metadata into shared Postgres (asyncpg, fire-and-forget)
 - 002-output-format-selection: Added format keyword detection (audio/images), audio extraction via FFmpegExtractAudio, shared handler logic, 40 unit tests
 - 001-video-download-bot: Initial bot with video/slideshow download, whitelist, inline mode
