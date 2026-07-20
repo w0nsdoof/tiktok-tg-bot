@@ -111,6 +111,12 @@ class Analytics:
     def enabled(self) -> bool:
         return self._dsn is not None
 
+    async def get_pool(self) -> Any:
+        """Shared pool for read-side services (StatsService). None when disabled."""
+        if not self.enabled:
+            return None
+        return await self._get_pool()
+
     async def _get_pool(self) -> Any:
         if self._pool is None:
             async with self._pool_lock:

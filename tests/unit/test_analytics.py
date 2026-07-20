@@ -110,3 +110,16 @@ class TestPoolRaceCondition:
 
             assert mock_create.await_count == 1
             assert pool1 is pool2
+
+
+class TestGetPool:
+    @pytest.mark.asyncio
+    async def test_disabled_returns_none(self):
+        assert await Analytics(None).get_pool() is None
+
+    @pytest.mark.asyncio
+    async def test_enabled_returns_shared_pool(self):
+        analytics = Analytics("postgresql://ignored")
+        pool = _FakePool(AsyncMock())
+        analytics._pool = pool
+        assert await analytics.get_pool() is pool
