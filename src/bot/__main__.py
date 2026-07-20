@@ -22,7 +22,7 @@ from bot.handlers.admin import (
 from bot.handlers.group import handle_group_message
 from bot.handlers.inline import handle_inline_query
 from bot.handlers.private import handle_help, handle_private_message, handle_start
-from bot.handlers.stats import handle_stats
+from bot.handlers.stats import handle_stats, handle_top
 from bot.health import heartbeat_job
 from bot.logging import setup_logging
 from bot.services.analytics import Analytics
@@ -99,6 +99,7 @@ def main() -> None:
     app.add_handler(CommandHandler("start", handle_start, filters=private & whitelist))
     app.add_handler(CommandHandler("help", handle_help, filters=private & whitelist))
     app.add_handler(CommandHandler("stats", handle_stats, filters=private & whitelist))
+    app.add_handler(CommandHandler("top", handle_top, filters=private & whitelist))
     private_text = filters.TEXT & ~filters.COMMAND
     app.add_handler(
         MessageHandler(private & whitelist & private_text, handle_private_message)

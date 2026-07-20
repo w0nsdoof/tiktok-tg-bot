@@ -2,8 +2,8 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
-from bot.handlers.stats import handle_stats
-from bot.services.stats import GlobalStats, UserStats
+from bot.handlers.stats import handle_stats, handle_top
+from bot.services.stats import GlobalStats, UserStats, TagVideo
 
 PERSONAL = UserStats(
     requests=10,
@@ -96,4 +96,71 @@ class TestStats:
         stats.user_stats = AsyncMock(side_effect=RuntimeError("db down"))
         update = _update()
         await handle_stats(update, _context(stats))
+        assert "unavailable" in _reply_text(update).lower()
+
+
+class TestTop:
+    async def test_bare_shows_usage(self):
+        stats = MagicMock()
+        stats.enabled = True
+        update = _update()
+        await handle_top(update, _context(stats))
+        assert "/top tags" in _reply_text(update)
+
+    async def test_junk_shows_usage(self):
+        stats = MagicMock()
+        stats.enabled = True
+        update = _update()
+        await handle_top(update, _context(stats, args=["bananas"]))
+        assert "/top tags" in _reply_text(update)
+
+    async def test_tags(self):
+        stats = MagicMock()
+        stats.enabled = True
+        stats.top_tags = AsyncMock(return_value=[("fyp", 9)])
+        update = _update()
+        await handle_top(update, _context(stats, args=["tags"]))
+        stats.top_tags.assert_awaited_once_with(10)
+        assert "#fyp — 9" in _reply_text(update)
+
+    async def test_creators(self):
+        stats = MagicMock()
+        stats.enabled = True
+        stats.top_creators = AsyncMock(return_value=[("@cat", 5)])
+        update = _update()
+        await handle_top(update, _context(stats, args=["creators"]))
+        assert "@cat — 5" in _reply_text(update)
+
+    async def test_hashtag_lowercases_and_strips_hash(self):
+        stats = MagicMock()
+        stats.enabled = True
+        video = TagVideo(title="Cat", creator="@cat", like_count=100, url="https://t/1")
+        stats.top_videos_for_tag = AsyncMock(return_value=[video])
+        update = _update()
+        await handle_top(update, _context(stats, args=["#FYP"]))
+        stats.top_videos_for_tag.assert_awaited_once_with("fyp", 5)
+        text = _reply_text(update)
+        assert "Cat" in text and "https://t/1" in text
+
+    async def test_unknown_tag_replies_no_data(self):
+        stats = MagicMock()
+        stats.enabled = True
+        stats.top_videos_for_tag = AsyncMock(return_value=[])
+        update = _update()
+        await handle_top(update, _context(stats, args=["#nosuchtag"]))
+        assert "No data" in _reply_text(update)
+
+    async def test_disabled_replies_unavailable(self):
+        stats = MagicMock()
+        stats.enabled = False
+        update = _update()
+        await handle_top(update, _context(stats, args=["tags"]))
+        assert "unavailable" in _reply_text(update).lower()
+
+    async def test_query_failure_replies_unavailable(self):
+        stats = MagicMock()
+        stats.enabled = True
+        stats.top_tags = AsyncMock(side_effect=RuntimeError("db down"))
+        update = _update()
+        await handle_top(update, _context(stats, args=["tags"]))
         assert "unavailable" in _reply_text(update).lower()
