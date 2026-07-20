@@ -22,9 +22,11 @@ from bot.handlers.admin import (
 from bot.handlers.group import handle_group_message
 from bot.handlers.inline import handle_inline_query
 from bot.handlers.private import handle_help, handle_private_message, handle_start
+from bot.handlers.stats import handle_stats
 from bot.health import heartbeat_job
 from bot.logging import setup_logging
 from bot.services.analytics import Analytics
+from bot.services.stats import StatsService
 from bot.services.user_store import UserStore
 
 
@@ -74,6 +76,7 @@ def main() -> None:
     app.bot_data["queue"] = DownloadQueue(settings.max_concurrent_downloads)
     app.bot_data["user_store"] = user_store
     app.bot_data["analytics"] = analytics
+    app.bot_data["stats"] = StatsService(analytics)
 
     # Build dynamic filters
     whitelist = WhitelistFilter(user_store)
@@ -95,6 +98,7 @@ def main() -> None:
     # --- Private chat: whitelisted users ---
     app.add_handler(CommandHandler("start", handle_start, filters=private & whitelist))
     app.add_handler(CommandHandler("help", handle_help, filters=private & whitelist))
+    app.add_handler(CommandHandler("stats", handle_stats, filters=private & whitelist))
     private_text = filters.TEXT & ~filters.COMMAND
     app.add_handler(
         MessageHandler(private & whitelist & private_text, handle_private_message)
