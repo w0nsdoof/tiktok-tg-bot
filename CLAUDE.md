@@ -1,6 +1,6 @@
 # tiktok-tg-bot Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-03-12
+Auto-generated from all feature plans. Last updated: 2026-07-20
 
 ## Active Technologies
 - Python 3.12 + python-telegram-bot 21.x (21.11.1), yt-dlp, pydantic-settings, structlog
