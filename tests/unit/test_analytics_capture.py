@@ -141,3 +141,34 @@ async def test_unhandled_exception_records_unknown_error():
 
     event, _ = _recorded_event(ctx)
     assert event.status == "unknown_error"
+
+
+@pytest.mark.asyncio
+async def test_inline_error_records_event():
+    from bot.handlers.inline import handle_inline_query
+
+    ctx = _make_context()
+    ctx.bot_data["user_store"] = MagicMock()
+    ctx.bot_data["user_store"].is_allowed.return_value = True
+
+    update = MagicMock()
+    query = update.inline_query
+    query.from_user.id = 42
+    query.from_user.language_code = "en"
+    query.query = VIDEO_URL
+    query.answer = AsyncMock()
+
+    with (
+        patch("bot.handlers.inline.extract_url", return_value=(VIDEO_URL, Platform.TIKTOK)),
+        patch(
+            "bot.handlers.inline.extract_metadata",
+            side_effect=VideoDownloadError(ErrorType.PRIVATE),
+        ),
+    ):
+        await handle_inline_query(update, ctx)
+
+    event, _ = _recorded_event(ctx)
+    assert event.status == "private"
+    assert event.chat_type == "inline"
+    assert event.output_format == "default"
+    assert event.user_id == 42

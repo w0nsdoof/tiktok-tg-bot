@@ -14,6 +14,8 @@ from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from bot.locales.messages import get_message
+from bot.models.video_info import VideoInfo
+from bot.services.analytics import Analytics, DownloadEvent
 from bot.services.downloader import (
     ErrorType,
     VideoDownloadError,
@@ -102,25 +104,33 @@ async def handle_inline_query(
         await _safe_answer(query, [help_result])
         return
 
-    url, _platform = result
+    url, platform = result
     queue: DownloadQueue = context.bot_data["queue"]
+    analytics: Analytics = context.bot_data["analytics"]
 
+    status = "ok"
+    video_info: VideoInfo | None = None
+    sent_file_size: int | None = None
     file_path: str | None = None
     try:
         async with queue.acquire():
             metadata = await extract_metadata(url)
+            video_info = metadata.info
 
             if metadata.is_slideshow:
+                status = "not_slideshow"
                 await _safe_answer(
                     query, [_error_article("error_slideshow_inline", lang)]
                 )
                 return
 
             if metadata.duration and metadata.duration > settings.max_duration:
+                status = "too_long"
                 await _safe_answer(query, [_error_article("error_too_long", lang)])
                 return
 
             if metadata.file_size and metadata.file_size > settings.max_file_size * 1024 * 1024:
+                status = "too_large"
                 await _safe_answer(query, [_error_article("error_too_large", lang)])
                 return
 
@@ -128,8 +138,10 @@ async def handle_inline_query(
 
             actual_size = os.path.getsize(file_path)
             if actual_size > settings.max_file_size * 1024 * 1024:
+                status = "too_large"
                 await _safe_answer(query, [_error_article("error_too_large", lang)])
                 return
+            sent_file_size = actual_size
 
             # Upload video to user's DM to get a file_id, then delete the DM message
             with open(file_path, "rb") as video_file:
@@ -143,6 +155,7 @@ async def handle_inline_query(
             await sent.delete()
 
             if not file_id:
+                status = "download_error"
                 await _safe_answer(query, [_error_article("error_download", lang)])
                 return
 
@@ -154,15 +167,31 @@ async def handle_inline_query(
             await _safe_answer(query, [video_result])
 
     except VideoDownloadError as e:
+        status = e.error_type.value
         msg_key = _ERROR_TYPE_TO_MESSAGE_KEY.get(e.error_type, "error_download")
         await _safe_answer(query, [_error_article(msg_key, lang)])
     except Exception:
+        status = "unknown_error"
         log.exception("inline.unhandled_error")
         await _safe_answer(query, [_error_article("error_unknown", lang)])
     finally:
         if file_path and os.path.exists(file_path):
             os.remove(file_path)
         duration_ms = int((time.monotonic() - start_time) * 1000)
+        analytics.record(
+            DownloadEvent(
+                user_id=user.id,
+                chat_type="inline",
+                platform=platform.value,
+                url=url,
+                output_format="default",
+                status=status,
+                video_id=video_info.video_id if video_info else None,
+                duration_ms=duration_ms,
+                file_size_bytes=sent_file_size,
+            ),
+            video_info,
+        )
         log.info("request.completed", total_duration_ms=duration_ms)
         structlog.contextvars.unbind_contextvars(
             "request_id", "user_id", "chat_type", "language"
