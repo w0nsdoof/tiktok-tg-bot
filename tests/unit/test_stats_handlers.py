@@ -3,7 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 from bot.handlers.stats import handle_stats, handle_top
-from bot.services.stats import GlobalStats, UserStats, TagVideo
+from bot.services.stats import GlobalStats, TagVideo, UserStats
 
 PERSONAL = UserStats(
     requests=10,
