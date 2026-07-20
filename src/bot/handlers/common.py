@@ -1,4 +1,5 @@
 import os
+import time
 
 import structlog
 from telegram import InputMediaPhoto, Message
@@ -8,6 +9,8 @@ from telegram.ext import ContextTypes
 from bot.config import Settings
 from bot.locales.messages import get_message
 from bot.models.request import OutputFormat
+from bot.models.video_info import VideoInfo
+from bot.services.analytics import Analytics, DownloadEvent
 from bot.services.downloader import (
     ErrorType,
     SlideshowResult,
@@ -89,34 +92,43 @@ async def process_request(
     if result is None:
         return None
 
-    url, _platform = result
+    url, platform = result
     output_format = parse_output_format(text, url)
     log.info("request.format_detected", output_format=output_format.value)
 
     settings: Settings = context.bot_data["settings"]
     queue: DownloadQueue = context.bot_data["queue"]
+    analytics: Analytics = context.bot_data["analytics"]
 
     if queue.is_full:
         await message.reply_text(get_message("queued", lang))
 
+    start = time.monotonic()
+    status = "ok"
+    video_info: VideoInfo | None = None
+    sent_file_size: int | None = None
     file_path: str | None = None
     slideshow: SlideshowResult | None = None
     try:
         async with queue.acquire():
             metadata = await extract_metadata(url)
+            video_info = metadata.info
 
             # Validate format compatibility before downloading
             if metadata.duration and metadata.duration > settings.max_duration:
+                status = "too_long"
                 await message.reply_text(get_message("error_too_long", lang))
                 return
             if (
                 metadata.file_size
                 and metadata.file_size > settings.max_file_size * 1024 * 1024
             ):
+                status = "too_large"
                 await message.reply_text(get_message("error_too_large", lang))
                 return
 
             if output_format == OutputFormat.IMAGES and not metadata.is_slideshow:
+                status = "not_slideshow"
                 await message.reply_text(get_message("error_not_slideshow", lang))
                 return
 
@@ -130,6 +142,7 @@ async def process_request(
                 )
                 audio_result = await download_audio(url, settings.download_dir)
                 file_path = audio_result.audio_path
+                sent_file_size = os.path.getsize(file_path)
 
                 await status_msg.edit_text(get_message("sending_audio", lang))
                 await context.bot.send_chat_action(
@@ -201,8 +214,10 @@ async def process_request(
 
                 actual_size = os.path.getsize(file_path)
                 if actual_size > settings.max_file_size * 1024 * 1024:
+                    status = "too_large"
                     await status_msg.edit_text(get_message("error_too_large", lang))
                     return
+                sent_file_size = actual_size
 
                 await status_msg.edit_text(get_message("sending", lang))
                 await context.bot.send_chat_action(
@@ -217,9 +232,11 @@ async def process_request(
                 await status_msg.delete()
 
     except VideoDownloadError as e:
+        status = e.error_type.value
         msg_key = _ERROR_TYPE_TO_MESSAGE_KEY.get(e.error_type, "error_download")
         await message.reply_text(get_message(msg_key, lang))
     except Exception:
+        status = "unknown_error"
         log.exception("request.unhandled_error")
         await message.reply_text(get_message("error_unknown", lang))
     finally:
@@ -227,3 +244,18 @@ async def process_request(
             os.remove(file_path)
         if slideshow:
             _cleanup_slideshow(slideshow)
+        user = message.from_user
+        analytics.record(
+            DownloadEvent(
+                user_id=user.id if user else 0,
+                chat_type="private" if message.chat.type == "private" else "group",
+                platform=platform.value,
+                url=url,
+                output_format=output_format.value,
+                status=status,
+                video_id=video_info.video_id if video_info else None,
+                duration_ms=int((time.monotonic() - start) * 1000),
+                file_size_bytes=sent_file_size,
+            ),
+            video_info,
+        )

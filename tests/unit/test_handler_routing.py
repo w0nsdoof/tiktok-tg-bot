@@ -27,6 +27,7 @@ def _make_context(settings=None):
             download_dir="/tmp/test",
         ),
         "queue": MagicMock(),
+        "analytics": MagicMock(),
     }
     ctx.bot_data["queue"].is_full = False
     ctx.bot_data["queue"].acquire = MagicMock(
@@ -44,6 +45,8 @@ def _make_message():
     msg = AsyncMock()
     msg.chat_id = 123
     msg.message_id = 456
+    msg.chat.type = "private"
+    msg.from_user.id = 111
     msg.reply_text = AsyncMock()
     msg.reply_video = AsyncMock()
     msg.reply_audio = AsyncMock()
