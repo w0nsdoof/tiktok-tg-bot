@@ -32,6 +32,7 @@ _ERROR_TYPE_TO_MESSAGE_KEY: dict[ErrorType, str] = {
     ErrorType.TOO_LONG: "error_too_long",
     ErrorType.TOO_LARGE: "error_too_large",
     ErrorType.PRIVATE: "error_private",
+    ErrorType.AUTH_REQUIRED: "error_auth_required",
     ErrorType.PLATFORM_DOWN: "error_platform_down",
     ErrorType.NOT_VIDEO: "error_not_video",
     ErrorType.DOWNLOAD_ERROR: "error_download",
@@ -114,7 +115,9 @@ async def handle_inline_query(
     file_path: str | None = None
     try:
         async with queue.acquire():
-            metadata = await extract_metadata(url)
+            metadata = await extract_metadata(
+                url, cookies_file=settings.instagram_cookies_file
+            )
             video_info = metadata.info
 
             if metadata.is_slideshow:
@@ -134,7 +137,11 @@ async def handle_inline_query(
                 await _safe_answer(query, [_error_article("error_too_large", lang)])
                 return
 
-            file_path = await download_video(url, settings.download_dir)
+            file_path = await download_video(
+                url,
+                settings.download_dir,
+                cookies_file=settings.instagram_cookies_file,
+            )
 
             actual_size = os.path.getsize(file_path)
             if actual_size > settings.max_file_size * 1024 * 1024:

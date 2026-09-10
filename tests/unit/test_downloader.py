@@ -7,9 +7,38 @@ from bot.services.downloader import (
     AudioResult,
     ErrorType,
     VideoDownloadError,
+    _classify_error,
     _download_audio_sync,
     _extract_metadata_sync,
+    _ydl_opts,
 )
+
+
+class TestErrorClassification:
+    def test_login_or_rate_limit_is_not_reported_as_private(self):
+        message = (
+            "Requested content is not available, rate-limit reached or login required. "
+            "Use --cookies-from-browser or --cookies for the authentication"
+        )
+        assert _classify_error(message) == ErrorType.AUTH_REQUIRED
+
+    def test_explicit_private_or_deleted_content_remains_private(self):
+        assert _classify_error("This post is private or deleted") == ErrorType.PRIVATE
+
+
+class TestYtDlpOptions:
+    def test_existing_cookie_file_is_passed_to_yt_dlp(self, tmp_path):
+        cookie_file = tmp_path / "instagram-cookies.txt"
+        cookie_file.write_text("# Netscape HTTP Cookie File\n")
+
+        opts = _ydl_opts(cookies_file=str(cookie_file))
+
+        assert opts["cookiefile"] == str(cookie_file)
+
+    def test_missing_cookie_file_is_ignored(self, tmp_path):
+        opts = _ydl_opts(cookies_file=str(tmp_path / "missing.txt"))
+
+        assert "cookiefile" not in opts
 
 
 class TestDownloadAudioSync:

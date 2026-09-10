@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     max_file_size: int = 50
     max_concurrent_downloads: int = 3
     download_dir: str = "/tmp/tg-bot-downloads"
+    instagram_cookies_file: str | None = None
     data_dir: str = "data"
     log_level: str = "INFO"
     log_json: bool = False

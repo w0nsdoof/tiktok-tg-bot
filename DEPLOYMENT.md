@@ -16,3 +16,11 @@ docker compose up -d --build
 
 `.env` (`BOT_TOKEN`, `ADMIN_USER_IDS`, …) lives on the server and is never committed.
 After a `.env` change use `docker compose up -d` (a plain `restart` does NOT reload it).
+
+Instagram may occasionally require an authenticated session or rate-limit anonymous
+requests. Export a Netscape-format cookies file from an Instagram account that can
+view the post, copy it to the persistent bot data volume as
+`/app/src/data/instagram-cookies.txt`, and set
+`INSTAGRAM_COOKIES_FILE=/app/src/data/instagram-cookies.txt` in `.env`. Keep the file
+private; it grants access to that Instagram session. With Compose, the copy step can
+be done using `docker compose cp ./instagram-cookies.txt bot:/app/src/data/instagram-cookies.txt`.

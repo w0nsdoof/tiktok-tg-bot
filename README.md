@@ -32,6 +32,7 @@ cd src && uv run python -m bot
 | Variable | Required | Description |
 |---|---|---|
 | `ANALYTICS_DSN` | No | Postgres DSN for usage analytics (e.g. `postgresql://user:pass@host:5432/dbname`); unset = analytics disabled |
+| `INSTAGRAM_COOKIES_FILE` | No | Path to a Netscape-format cookies file passed to yt-dlp for Instagram posts that require login |
 
 ## Deployment
 

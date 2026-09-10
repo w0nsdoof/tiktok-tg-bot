@@ -9,6 +9,11 @@ MESSAGES: dict[str, dict[str, str]] = {
             "This video is too large to send via Telegram (over 50 MB)."
         ),
         "error_private": "This video is unavailable (private or deleted).",
+        "error_auth_required": (
+            "The platform requires authentication for this post, or is temporarily "
+            "limiting requests. "
+            "Please try again later."
+        ),
         "error_platform_down": (
             "Could not reach the platform right now. Please try again in a few minutes."
         ),
@@ -108,6 +113,10 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Это видео слишком большое для отправки через Telegram (более 50 МБ)."
         ),
         "error_private": "Это видео недоступно (приватное или удалено).",
+        "error_auth_required": (
+            "Платформа требует авторизацию для этой публикации или временно ограничивает запросы. "
+            "Попробуйте позже."
+        ),
         "error_platform_down": (
             "Не удалось связаться с платформой. Попробуйте через несколько минут."
         ),

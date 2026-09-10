@@ -12,6 +12,7 @@ venv/
 
 # Environment
 .env
+instagram-cookies*.txt
 
 # Type checking / linting caches
 .mypy_cache/

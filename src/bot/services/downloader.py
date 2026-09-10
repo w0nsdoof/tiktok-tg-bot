@@ -25,6 +25,7 @@ class ErrorType(Enum):
     TOO_LONG = "too_long"
     TOO_LARGE = "too_large"
     PRIVATE = "private"
+    AUTH_REQUIRED = "auth_required"
     PLATFORM_DOWN = "platform_down"
     NOT_VIDEO = "not_video"
     DOWNLOAD_ERROR = "download_error"
@@ -62,7 +63,20 @@ class AudioResult:
 
 def _classify_error(error_msg: str) -> ErrorType:
     lower = error_msg.lower()
-    if any(w in lower for w in ("private", "deleted", "removed", "unavailable", "not available")):
+    if any(w in lower for w in ("private", "deleted", "removed")):
+        return ErrorType.PRIVATE
+    if any(
+        w in lower
+        for w in (
+            "login required",
+            "authentication",
+            "cookies-from-browser",
+            "registered users",
+            "rate-limit reached",
+        )
+    ):
+        return ErrorType.AUTH_REQUIRED
+    if any(w in lower for w in ("unavailable", "not available")):
         return ErrorType.PRIVATE
     if any(w in lower for w in ("rate", "limit", "429", "too many", "blocked")):
         return ErrorType.PLATFORM_DOWN
@@ -102,15 +116,26 @@ _COMMON_OPTS: dict[str, object] = {
 }
 
 
-def _ydl_opts(**overrides: object) -> dict[str, object]:
-    """Build yt-dlp options with common defaults."""
-    return {**_COMMON_OPTS, **overrides}
+def _ydl_opts(
+    *, cookies_file: str | None = None, **overrides: object
+) -> dict[str, object]:
+    """Build yt-dlp options, optionally authenticating Instagram requests."""
+    opts = {**_COMMON_OPTS, **overrides}
+    if cookies_file:
+        cookie_path = Path(cookies_file)
+        if cookie_path.is_file():
+            opts["cookiefile"] = str(cookie_path)
+        else:
+            log.warning("instagram.cookies_file_missing", path=str(cookie_path))
+    return opts
 
 
-def _extract_metadata_sync(url: str) -> VideoMetadata:
+def _extract_metadata_sync(
+    url: str, cookies_file: str | None = None
+) -> VideoMetadata:
     resolved_url = _resolve_tiktok_shortlink(url)
     normalized_url = re.sub(r"(tiktok\.com/@[^/]+)/photo/", r"\1/video/", resolved_url)
-    ydl_opts = _ydl_opts(skip_download=True)
+    ydl_opts = _ydl_opts(skip_download=True, cookies_file=cookies_file)
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(normalized_url, download=False)
@@ -133,12 +158,15 @@ def _extract_metadata_sync(url: str) -> VideoMetadata:
         raise VideoDownloadError(_classify_error(str(e)), str(e)) from e
 
 
-def _download_video_sync(url: str, output_dir: str) -> str:
+def _download_video_sync(
+    url: str, output_dir: str, cookies_file: str | None = None
+) -> str:
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     # Use UUID prefix to avoid collisions when same video is requested concurrently
     unique_prefix = uuid4().hex[:8]
     output_template = os.path.join(output_dir, f"{unique_prefix}_%(id)s.%(ext)s")
     ydl_opts = _ydl_opts(
+        cookies_file=cookies_file,
         outtmpl=output_template,
         format=(
             "bestvideo[filesize<=50M][ext=mp4]+bestaudio[ext=m4a]/"
@@ -209,12 +237,15 @@ def _scrape_slideshow_images(url: str) -> list[str]:
     return image_urls
 
 
-def _download_audio_sync(url: str, output_dir: str) -> AudioResult:
+def _download_audio_sync(
+    url: str, output_dir: str, cookies_file: str | None = None
+) -> AudioResult:
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     unique_prefix = uuid4().hex[:8]
     audio_template = os.path.join(output_dir, f"{unique_prefix}_audio.%(ext)s")
     normalized_url = _normalize_tiktok_url(url)
     ydl_opts = _ydl_opts(
+        cookies_file=cookies_file,
         outtmpl=audio_template,
         format="bestaudio/best",
         postprocessors=[{
@@ -250,7 +281,11 @@ def _download_audio_sync(url: str, output_dir: str) -> AudioResult:
 
 
 def _download_slideshow_sync(
-    url: str, output_dir: str, *, include_audio: bool = True
+    url: str,
+    output_dir: str,
+    *,
+    include_audio: bool = True,
+    cookies_file: str | None = None,
 ) -> SlideshowResult:
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     unique_prefix = uuid4().hex[:8]
@@ -284,6 +319,7 @@ def _download_slideshow_sync(
         video_url = _normalize_tiktok_url(url)
         audio_template = os.path.join(output_dir, f"{unique_prefix}_audio.%(ext)s")
         ydl_opts = _ydl_opts(
+            cookies_file=cookies_file,
             outtmpl=audio_template,
             format="bestaudio/best",
         )
@@ -301,11 +337,15 @@ def _download_slideshow_sync(
     return SlideshowResult(image_paths=image_paths, audio_path=audio_path, title=title)
 
 
-async def download_audio(url: str, output_dir: str) -> AudioResult:
+async def download_audio(
+    url: str, output_dir: str, cookies_file: str | None = None
+) -> AudioResult:
     start = time.monotonic()
     log.info("audio_download.started", url=url)
     try:
-        result = await asyncio.to_thread(_download_audio_sync, url, output_dir)
+        result = await asyncio.to_thread(
+            _download_audio_sync, url, output_dir, cookies_file
+        )
         duration_ms = int((time.monotonic() - start) * 1000)
         log.info(
             "audio_download.completed",
@@ -325,13 +365,21 @@ async def download_audio(url: str, output_dir: str) -> AudioResult:
 
 
 async def download_slideshow(
-    url: str, output_dir: str, *, include_audio: bool = True
+    url: str,
+    output_dir: str,
+    *,
+    include_audio: bool = True,
+    cookies_file: str | None = None,
 ) -> SlideshowResult:
     start = time.monotonic()
     log.info("slideshow_download.started", url=url)
     try:
         result = await asyncio.to_thread(
-            _download_slideshow_sync, url, output_dir, include_audio=include_audio
+            _download_slideshow_sync,
+            url,
+            output_dir,
+            include_audio=include_audio,
+            cookies_file=cookies_file,
         )
         duration_ms = int((time.monotonic() - start) * 1000)
         log.info(
@@ -353,10 +401,12 @@ async def download_slideshow(
         raise
 
 
-async def extract_metadata(url: str) -> VideoMetadata:
+async def extract_metadata(
+    url: str, cookies_file: str | None = None
+) -> VideoMetadata:
     start = time.monotonic()
     try:
-        metadata = await asyncio.to_thread(_extract_metadata_sync, url)
+        metadata = await asyncio.to_thread(_extract_metadata_sync, url, cookies_file)
         duration_ms = int((time.monotonic() - start) * 1000)
         log.info(
             "download.metadata_extracted",
@@ -378,11 +428,15 @@ async def extract_metadata(url: str) -> VideoMetadata:
         raise
 
 
-async def download_video(url: str, output_dir: str) -> str:
+async def download_video(
+    url: str, output_dir: str, cookies_file: str | None = None
+) -> str:
     start = time.monotonic()
     log.info("download.started", url=url)
     try:
-        file_path = await asyncio.to_thread(_download_video_sync, url, output_dir)
+        file_path = await asyncio.to_thread(
+            _download_video_sync, url, output_dir, cookies_file
+        )
         duration_ms = int((time.monotonic() - start) * 1000)
         file_size = os.path.getsize(file_path)
         log.info(

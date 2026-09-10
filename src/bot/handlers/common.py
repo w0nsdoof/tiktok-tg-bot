@@ -30,6 +30,7 @@ _ERROR_TYPE_TO_MESSAGE_KEY: dict[ErrorType, str] = {
     ErrorType.TOO_LONG: "error_too_long",
     ErrorType.TOO_LARGE: "error_too_large",
     ErrorType.PRIVATE: "error_private",
+    ErrorType.AUTH_REQUIRED: "error_auth_required",
     ErrorType.PLATFORM_DOWN: "error_platform_down",
     ErrorType.NOT_VIDEO: "error_not_video",
     ErrorType.DOWNLOAD_ERROR: "error_download",
@@ -111,7 +112,9 @@ async def process_request(
     slideshow: SlideshowResult | None = None
     try:
         async with queue.acquire():
-            metadata = await extract_metadata(url)
+            metadata = await extract_metadata(
+                url, cookies_file=settings.instagram_cookies_file
+            )
             video_info = metadata.info
 
             # Validate format compatibility before downloading
@@ -140,7 +143,11 @@ async def process_request(
                 await context.bot.send_chat_action(
                     chat_id=message.chat_id, action=ChatAction.UPLOAD_VOICE
                 )
-                audio_result = await download_audio(url, settings.download_dir)
+                audio_result = await download_audio(
+                    url,
+                    settings.download_dir,
+                    cookies_file=settings.instagram_cookies_file,
+                )
                 file_path = audio_result.audio_path
                 sent_file_size = os.path.getsize(file_path)
 
@@ -166,7 +173,10 @@ async def process_request(
                         chat_id=message.chat_id, action=ChatAction.UPLOAD_PHOTO
                     )
                     slideshow = await download_slideshow(
-                        url, settings.download_dir, include_audio=False
+                        url,
+                        settings.download_dir,
+                        include_audio=False,
+                        cookies_file=settings.instagram_cookies_file,
                     )
                     await status_msg.edit_text(get_message("sending_photos", lang))
                     await context.bot.send_chat_action(
@@ -194,7 +204,11 @@ async def process_request(
                     await context.bot.send_chat_action(
                         chat_id=message.chat_id, action=ChatAction.UPLOAD_PHOTO
                     )
-                    slideshow = await download_slideshow(url, settings.download_dir)
+                    slideshow = await download_slideshow(
+                        url,
+                        settings.download_dir,
+                        cookies_file=settings.instagram_cookies_file,
+                    )
                     await status_msg.edit_text(get_message("sending_photos", lang))
                     await context.bot.send_chat_action(
                         chat_id=message.chat_id, action=ChatAction.UPLOAD_PHOTO
@@ -210,7 +224,11 @@ async def process_request(
                     chat_id=message.chat_id, action=ChatAction.UPLOAD_VIDEO
                 )
 
-                file_path = await download_video(url, settings.download_dir)
+                file_path = await download_video(
+                    url,
+                    settings.download_dir,
+                    cookies_file=settings.instagram_cookies_file,
+                )
 
                 actual_size = os.path.getsize(file_path)
                 if actual_size > settings.max_file_size * 1024 * 1024:
