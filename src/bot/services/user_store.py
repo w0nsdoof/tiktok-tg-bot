@@ -59,6 +59,7 @@ _INTEGER_SETTING_RANGES = {
     "max_file_size": (1, 2000),
 }
 _GROUP_ACCESS_MODES = {"open", "allowed_users", "disabled"}
+_SCHEMA_LOCK_ID = 7_289_352_261_080_961_364
 
 
 class AccountAlreadyLinkedError(Exception):
@@ -109,7 +110,10 @@ class UserStore:
             return
         self._pool = await asyncpg.create_pool(self._dsn, min_size=1, max_size=3)
         async with self._pool.acquire() as conn:
-            await conn.execute(_SCHEMA_DDL)
+            # Bot and web can start together; PostgreSQL DDL needs explicit serialization.
+            async with conn.transaction():
+                await conn.execute("SELECT pg_advisory_xact_lock($1)", _SCHEMA_LOCK_ID)
+                await conn.execute(_SCHEMA_DDL)
             for record in self._users.values():
                 await conn.execute(
                     """

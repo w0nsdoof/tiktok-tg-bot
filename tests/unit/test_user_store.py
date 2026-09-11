@@ -136,8 +136,9 @@ async def test_postgres_initialization_creates_schema_and_migrates_seeds(
     ):
         await store.initialize()
 
-    assert "CREATE TABLE IF NOT EXISTS bot_users" in connection.execute.await_args_list[0].args[0]
-    assert connection.execute.await_count == 4
+    assert connection.execute.await_args_list[0].args[0] == "SELECT pg_advisory_xact_lock($1)"
+    assert "CREATE TABLE IF NOT EXISTS bot_users" in connection.execute.await_args_list[1].args[0]
+    assert connection.execute.await_count == 5
     refresh.assert_awaited_once()
 
 

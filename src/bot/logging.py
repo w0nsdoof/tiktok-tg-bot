@@ -40,3 +40,6 @@ def setup_logging(settings: Settings) -> None:
         format="%(message)s",
         level=getattr(logging, settings.log_level.upper(), logging.INFO),
     )
+    # httpx logs full Telegram API URLs, whose path contains the bot token.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
