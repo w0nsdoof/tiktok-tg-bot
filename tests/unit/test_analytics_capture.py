@@ -39,6 +39,8 @@ def _make_message():
     msg.message_id = 456
     msg.chat.type = "private"
     msg.from_user.id = 111
+    msg.from_user.username = "telegram_user"
+    msg.from_user.full_name = "Telegram User"
     status_msg = AsyncMock()
     msg.reply_text.return_value = status_msg
     return msg
@@ -53,6 +55,8 @@ def _recorded_event(ctx):
 @pytest.mark.asyncio
 async def test_success_records_ok():
     msg, ctx = _make_message(), _make_context()
+    ctx.bot_data["user_store"] = MagicMock()
+    ctx.bot_data["user_store"].get_runtime_int.side_effect = lambda _, fallback: fallback
     with (
         patch("bot.handlers.common.extract_url", return_value=(VIDEO_URL, Platform.TIKTOK)),
         patch("bot.handlers.common.parse_output_format", return_value=OutputFormat.DEFAULT),
@@ -75,6 +79,11 @@ async def test_success_records_ok():
     assert event.video_id == "123"
     assert event.file_size_bytes == 1000
     assert video is VIDEO_INFO
+    ctx.bot_data["user_store"].observe_identity.assert_called_once_with(
+        111,
+        username="telegram_user",
+        display_name="Telegram User",
+    )
 
 
 @pytest.mark.asyncio
@@ -156,6 +165,8 @@ async def test_inline_error_records_event():
     query = update.inline_query
     query.from_user.id = 42
     query.from_user.language_code = "en"
+    query.from_user.username = "inline_user"
+    query.from_user.full_name = "Inline User"
     query.query = VIDEO_URL
     query.answer = AsyncMock()
 
@@ -173,6 +184,11 @@ async def test_inline_error_records_event():
     assert event.chat_type == "inline"
     assert event.output_format == "default"
     assert event.user_id == 42
+    ctx.bot_data["user_store"].observe_identity.assert_called_once_with(
+        42,
+        username="inline_user",
+        display_name="Inline User",
+    )
 
 
 @pytest.mark.asyncio

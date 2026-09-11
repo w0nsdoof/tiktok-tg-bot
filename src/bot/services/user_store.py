@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import os
@@ -95,6 +96,7 @@ class UserStore:
         self._file_path = os.path.join(data_dir, "allowed_users.json")
         self._dsn = dsn
         self._pool: Any = None
+        self._identity_tasks: set[asyncio.Task[None]] = set()
         self._users: dict[int, UserRecord] = {}
         self._pending_requests: set[int] = set()
         self._runtime_settings = dict(runtime_defaults or {})
@@ -147,8 +149,58 @@ class UserStore:
         log.info("user_store.database_ready", users=len(self._users))
 
     async def close(self) -> None:
+        if self._identity_tasks:
+            await asyncio.gather(*self._identity_tasks, return_exceptions=True)
         if self._pool is not None:
             await self._pool.close()
+
+    def observe_identity(
+        self,
+        user_id: int,
+        *,
+        username: str | None,
+        display_name: str,
+    ) -> None:
+        """Refresh Telegram profile fields for an existing access record."""
+        record = self._users.get(user_id)
+        if record is None:
+            return
+        if record.telegram_username == username and record.display_name == display_name:
+            return
+
+        record.telegram_username = username
+        record.display_name = display_name
+        if self._pool is None:
+            return
+
+        task = asyncio.create_task(
+            self._persist_identity(user_id, username=username, display_name=display_name)
+        )
+        self._identity_tasks.add(task)
+        task.add_done_callback(self._identity_tasks.discard)
+
+    async def _persist_identity(
+        self,
+        user_id: int,
+        *,
+        username: str | None,
+        display_name: str,
+    ) -> None:
+        try:
+            await self._pool.execute(
+                """
+                UPDATE bot_users
+                SET telegram_username = $2, display_name = $3, updated_at = now()
+                WHERE telegram_user_id = $1
+                  AND (telegram_username IS DISTINCT FROM $2
+                       OR display_name IS DISTINCT FROM $3)
+                """,
+                user_id,
+                username,
+                display_name,
+            )
+        except Exception:
+            log.warning("user_store.identity_update_failed", user_id=user_id, exc_info=True)
 
     async def refresh(self) -> None:
         if self._pool is None:

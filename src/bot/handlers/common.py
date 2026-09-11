@@ -102,6 +102,12 @@ async def process_request(
     queue: DownloadQueue = context.bot_data["queue"]
     analytics: Analytics = context.bot_data["analytics"]
     user_store: UserStore | None = context.bot_data.get("user_store")
+    if user_store and message.from_user:
+        user_store.observe_identity(
+            message.from_user.id,
+            username=message.from_user.username,
+            display_name=message.from_user.full_name,
+        )
     max_duration = (
         user_store.get_runtime_int("max_duration", settings.max_duration)
         if user_store else settings.max_duration

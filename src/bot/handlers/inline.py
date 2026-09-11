@@ -80,6 +80,12 @@ async def handle_inline_query(
         await _safe_answer(query, [])
         return
 
+    user_store.observe_identity(
+        user.id,
+        username=user.username,
+        display_name=user.full_name,
+    )
+
     settings = context.bot_data["settings"]
     max_duration = user_store.get_runtime_int("max_duration", settings.max_duration)
     max_file_size = user_store.get_runtime_int("max_file_size", settings.max_file_size)

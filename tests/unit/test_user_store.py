@@ -161,6 +161,46 @@ async def test_one_authentik_identity_cannot_link_to_two_telegram_users(
 
 
 @pytest.mark.asyncio
+async def test_observed_identity_is_persisted_without_creating_or_linking_user(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    pool = _FakePool(_FakeConnection())
+    store._pool = pool
+
+    store.observe_identity(2, username="telegram_name", display_name="Telegram Name")
+    await store.close()
+
+    sql = pool.execute.await_args.args[0]
+    assert sql.lstrip().startswith("UPDATE bot_users")
+    assert "authentik" not in sql
+    assert pool.execute.await_args.args[1:] == (2, "telegram_name", "Telegram Name")
+
+
+@pytest.mark.asyncio
+async def test_observed_identity_ignores_users_without_access_records(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    pool = _FakePool(_FakeConnection())
+    store._pool = pool
+
+    store.observe_identity(99, username="outsider", display_name="Outsider")
+    await store.close()
+
+    pool.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_observed_identity_database_failure_does_not_escape(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    pool = _FakePool(_FakeConnection())
+    pool.execute.side_effect = RuntimeError("database unavailable")
+    store._pool = pool
+
+    store.observe_identity(2, username=None, display_name="Updated Name")
+    await store.close()
+
+
+@pytest.mark.asyncio
 async def test_runtime_settings_are_all_validated_before_database_write(tmp_path: Path) -> None:
     store = _store(tmp_path)
     pool = _FakePool(_FakeConnection())
