@@ -52,6 +52,7 @@ Apply these changes in the `reverse-proxy` repository's existing Authentik bluep
    - grant types: `authorization_code`, `refresh_token`
    - strict redirect URI: `https://bot.w0nsdoof.com/auth/callback`
    - issuer mode: per-provider
+   - signing key: `authentik Self-signed Certificate` (or another persistent certificate-key pair)
    - mappings: managed `openid`, `profile`, and `email`
 3. Add an application with slug `tiktok-bot`, then bind all three application groups and
    `infrastructure-admins` to it. Operators and admins should normally also belong to
@@ -70,6 +71,15 @@ Its discovery document must be reachable at:
 ```text
 https://auth.w0nsdoof.com/application/o/tiktok-bot/.well-known/openid-configuration
 ```
+
+The provider must publish at least one asymmetric key:
+
+```bash
+curl -fsS https://auth.w0nsdoof.com/application/o/tiktok-bot/jwks/ | jq '.keys | length'
+```
+
+Without a signing key, Authentik signs with the client secret and returns `{}` from the JWKS
+endpoint. Authlib then fails the callback while trying to validate the ID token.
 
 ## Caddy and DNS
 
@@ -138,3 +148,17 @@ SELECT telegram_user_id, status, role, authentik_username FROM bot_users ORDER B
 SELECT key, value, updated_by FROM runtime_settings ORDER BY key;
 SELECT actor, action, telegram_user_id, ts FROM access_audit_log ORDER BY ts DESC LIMIT 20;
 ```
+
+## Troubleshooting
+
+- Callback fails with `KeyError: 'keys'`: check the provider's JWKS endpoint. Assign a signing
+  certificate, reapply the blueprint, verify at least one key is present, and restart the web
+  service to clear Authlib's cached empty response.
+- Server-side OIDC requests receive a Cloudflare challenge: containers on the external `web`
+  network must resolve `auth.w0nsdoof.com` to Caddy's `auth.w0nsdoof.com` network alias. Verify
+  the web container's resolved address matches the `reverse-proxy` container's `web` address.
+- Bot and web may start concurrently. Access-table DDL is serialized with a PostgreSQL advisory
+  transaction lock; a `UniqueViolationError` during schema creation means the deployed revision
+  predates that fix.
+- Keep `httpx` and `httpcore` below INFO logging. Telegram API URLs contain the bot token in the
+  path; rotate the token immediately if such a URL appears in logs.
