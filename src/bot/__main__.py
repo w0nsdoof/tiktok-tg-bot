@@ -1,6 +1,8 @@
 import os
+from typing import Any
 
 import structlog
+from telegram import Bot
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -32,6 +34,29 @@ from bot.services.stats import StatsService
 from bot.services.user_store import UserStore
 
 
+async def backfill_telegram_identities(bot: Bot, user_store: UserStore) -> None:
+    users = await user_store.list_users()
+    resolved = 0
+    for user in users:
+        try:
+            chat = await bot.get_chat(user.user_id)
+        except Exception:
+            continue
+        if not chat.full_name:
+            continue
+        user_store.observe_identity(
+            user.user_id,
+            username=chat.username,
+            display_name=chat.full_name,
+        )
+        resolved += 1
+    structlog.get_logger().info(
+        "user_store.identity_backfill_complete",
+        resolved=resolved,
+        unresolved=len(users) - resolved,
+    )
+
+
 async def refresh_access_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     user_store: UserStore = context.bot_data["user_store"]
     await user_store.refresh()
@@ -61,9 +86,10 @@ def main() -> None:
         settings.analytics_dsn.get_secret_value() if settings.analytics_dsn else None
     )
 
-    async def _post_init(app_: object) -> None:
+    async def _post_init(app_: Any) -> None:
         await user_store.initialize()
         await analytics.ensure_schema()
+        await backfill_telegram_identities(app_.bot, user_store)
         if not user_store.get_admin_ids():
             log.warning(
                 "bot.no_admins",
