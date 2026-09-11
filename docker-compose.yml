@@ -18,9 +18,46 @@ services:
     networks:
       - default
       - db
+  web:
+    build: .
+    container_name: tiktok-bot-web
+    profiles: [control-panel]
+    restart: unless-stopped
+    env_file: .env
+    command:
+      - uv
+      - run
+      - --no-dev
+      - uvicorn
+      - bot.web:create_app
+      - --factory
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --proxy-headers
+      - --forwarded-allow-ips
+      - "*"
+      - --no-access-log
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/healthz >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    volumes:
+      - botdata:/app/src/data:ro
+    networks:
+      - db
+      - web
 volumes:
   downloads:
   botdata:
 networks:
   db:
+    external: true
+  web:
     external: true

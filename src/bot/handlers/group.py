@@ -7,6 +7,7 @@ from telegram.ext import ContextTypes
 
 from bot.handlers.common import process_request
 from bot.services.url_parser import extract_url
+from bot.services.user_store import UserStore
 
 log = structlog.get_logger()
 
@@ -25,6 +26,13 @@ async def handle_group_message(
     result = extract_url(text)
     if result is None:
         return  # Silently ignore non-URL messages in groups
+
+    user_store: UserStore = context.bot_data["user_store"]
+    access_mode = user_store.get_runtime("group_access_mode", "open")
+    if access_mode == "disabled":
+        return
+    if access_mode == "allowed_users" and (user is None or not user_store.is_allowed(user.id)):
+        return
 
     start_time = time.monotonic()
     url, platform = result

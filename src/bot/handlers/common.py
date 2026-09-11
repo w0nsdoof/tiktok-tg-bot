@@ -23,6 +23,7 @@ from bot.services.downloader import (
 from bot.services.format_parser import parse_output_format
 from bot.services.queue import DownloadQueue
 from bot.services.url_parser import extract_url
+from bot.services.user_store import UserStore
 
 log = structlog.get_logger()
 
@@ -100,6 +101,15 @@ async def process_request(
     settings: Settings = context.bot_data["settings"]
     queue: DownloadQueue = context.bot_data["queue"]
     analytics: Analytics = context.bot_data["analytics"]
+    user_store: UserStore | None = context.bot_data.get("user_store")
+    max_duration = (
+        user_store.get_runtime_int("max_duration", settings.max_duration)
+        if user_store else settings.max_duration
+    )
+    max_file_size = (
+        user_store.get_runtime_int("max_file_size", settings.max_file_size)
+        if user_store else settings.max_file_size
+    )
 
     if queue.is_full:
         await message.reply_text(get_message("queued", lang))
@@ -118,13 +128,13 @@ async def process_request(
             video_info = metadata.info
 
             # Validate format compatibility before downloading
-            if metadata.duration and metadata.duration > settings.max_duration:
+            if metadata.duration and metadata.duration > max_duration:
                 status = "too_long"
                 await message.reply_text(get_message("error_too_long", lang))
                 return
             if (
                 metadata.file_size
-                and metadata.file_size > settings.max_file_size * 1024 * 1024
+                and metadata.file_size > max_file_size * 1024 * 1024
             ):
                 status = "too_large"
                 await message.reply_text(get_message("error_too_large", lang))
@@ -231,7 +241,7 @@ async def process_request(
                 )
 
                 actual_size = os.path.getsize(file_path)
-                if actual_size > settings.max_file_size * 1024 * 1024:
+                if actual_size > max_file_size * 1024 * 1024:
                     status = "too_large"
                     await status_msg.edit_text(get_message("error_too_large", lang))
                     return

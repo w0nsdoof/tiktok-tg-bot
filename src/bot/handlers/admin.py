@@ -1,3 +1,5 @@
+from typing import cast
+
 import structlog
 from telegram import (
     InlineKeyboardButton,
@@ -15,7 +17,7 @@ log = structlog.get_logger()
 
 
 def _get_user_store(context: ContextTypes.DEFAULT_TYPE) -> UserStore:
-    return context.bot_data["user_store"]
+    return cast(UserStore, context.bot_data["user_store"])
 
 
 async def handle_access_denied(
@@ -78,7 +80,14 @@ async def handle_request_access_callback(
         )
         return
 
-    user_store.add_pending_request(user.id)
+    added = await user_store.add_pending_request(
+        user.id,
+        username=user.username,
+        display_name=user.full_name,
+    )
+    if not added:
+        await query.edit_message_text(get_message("access_already_requested", lang))
+        return
     await query.edit_message_text(get_message("access_requested", lang))
 
     # Notify all admins
@@ -135,10 +144,12 @@ async def handle_access_callback(
     action = parts[1]
     target_id = int(parts[2])
 
-    user_store.remove_pending_request(target_id)
-
     if action == "approve":
-        user_store.add_user(target_id, is_admin=False)
+        await user_store.add_user(
+            target_id,
+            is_admin=False,
+            actor=f"telegram:{admin.id}",
+        )
         try:
             await context.bot.send_message(
                 chat_id=target_id,
@@ -151,6 +162,7 @@ async def handle_access_callback(
             get_message("admin_approved", lang, name="User", user_id=target_id)
         )
     else:
+        await user_store.deny_user(target_id, actor=f"telegram:{admin.id}")
         try:
             await context.bot.send_message(
                 chat_id=target_id,
@@ -195,7 +207,13 @@ async def handle_add_forward(
             )
             return
 
-        user_store.add_user(target_id, is_admin=False)
+        await user_store.add_user(
+            target_id,
+            is_admin=False,
+            actor=f"telegram:{update.effective_user.id}",
+            username=target_user.username,
+            display_name=target_user.full_name,
+        )
         await message.reply_text(
             get_message("user_added", lang, name=name, user_id=target_id)
         )
@@ -211,3 +229,27 @@ async def handle_add_forward(
 
     # Other origin types (channel, chat) — not a user we can add
     await message.reply_text(get_message("forward_hidden_user", lang))
+
+
+async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Create a short-lived link that binds Telegram to the Authentik identity."""
+    if not update.effective_message or not update.effective_user:
+        return
+    settings = context.bot_data["settings"]
+    lang = update.effective_user.language_code
+    if not settings.control_panel_url:
+        await update.effective_message.reply_text(get_message("link_unavailable", lang))
+        return
+    user_store = _get_user_store(context)
+    try:
+        token = await user_store.create_link_token(
+            update.effective_user.id,
+            username=update.effective_user.username,
+            display_name=update.effective_user.full_name,
+        )
+    except Exception:
+        log.warning("account_link.create_failed", exc_info=True)
+        await update.effective_message.reply_text(get_message("link_unavailable", lang))
+        return
+    url = f"{settings.control_panel_url.rstrip('/')}/link/{token}"
+    await update.effective_message.reply_text(get_message("link_created", lang, url=url))

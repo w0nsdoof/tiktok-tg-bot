@@ -32,7 +32,17 @@ cd src && uv run python -m bot
 | Variable | Required | Description |
 |---|---|---|
 | `ANALYTICS_DSN` | No | Postgres DSN for usage analytics (e.g. `postgresql://user:pass@host:5432/dbname`); unset = analytics disabled |
+| `DATABASE_DSN` | No | Primary PostgreSQL DSN for access control and runtime settings; defaults to `ANALYTICS_DSN` |
 | `INSTAGRAM_COOKIES_FILE` | No | Path to a Netscape-format cookies file passed to yt-dlp for Instagram posts that require login |
+
+## Web control panel
+
+The Compose stack includes an Authentik OIDC-protected FastAPI control panel for persistent
+access requests, Telegram-to-Authentik account linking, roles, and live download/group limits.
+It uses the existing PostgreSQL database and is not published directly to the host.
+
+See [docs/control-panel.md](docs/control-panel.md) for the Authentik, Caddy, environment, and
+deployment configuration.
 
 ## Deployment
 

@@ -10,9 +10,7 @@ import pytest
 from bot.models.request import OutputFormat
 from bot.services.downloader import (
     AudioResult,
-    ErrorType,
     SlideshowResult,
-    VideoDownloadError,
     VideoMetadata,
 )
 
@@ -62,7 +60,9 @@ def _make_message():
 
 VIDEO_URL = "https://www.tiktok.com/@user/video/123"
 VIDEO_METADATA = VideoMetadata(duration=30, file_size=1000, title="Test Video", is_slideshow=False)
-SLIDESHOW_METADATA = VideoMetadata(duration=10, file_size=500, title="Test Slideshow", is_slideshow=True)
+SLIDESHOW_METADATA = VideoMetadata(
+    duration=10, file_size=500, title="Test Slideshow", is_slideshow=True
+)
 
 
 class TestDefaultVideo:

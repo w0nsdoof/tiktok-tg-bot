@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Settings · TikTok Bot{% endblock %}
+{% block content %}
+<section class="hero"><p class="eyebrow">Runtime policy</p><h1>Settings</h1><p>Changes reach the bot within about 15 seconds and do not require a restart.</p></section>
+<form class="panel form-grid" method="post" action="/settings">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label>Maximum video duration, seconds<input type="number" min="1" max="3600" name="max_duration" value="{{ values.max_duration }}" required></label>
+  <label>Maximum file size, MB<input type="number" min="1" max="2000" name="max_file_size" value="{{ values.max_file_size }}" required></label>
+  <label>Group access<select name="group_access_mode"><option value="open" {% if values.group_access_mode == 'open' %}selected{% endif %}>Open to group members</option><option value="allowed_users" {% if values.group_access_mode == 'allowed_users' %}selected{% endif %}>Whitelisted users only</option><option value="disabled" {% if values.group_access_mode == 'disabled' %}selected{% endif %}>Disabled</option></select></label>
+  <div>{% if is_admin %}<button type="submit">Save settings</button>{% else %}<p>Only members of the Authentik admin group can change settings.</p>{% endif %}</div>
+</form>
+{% endblock %}

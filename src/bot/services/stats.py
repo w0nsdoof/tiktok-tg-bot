@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -171,7 +171,7 @@ class StatsService:
     async def _fetch(self, query: str, *args: Any) -> list[Any]:
         pool = await self._analytics.get_pool()
         async with pool.acquire() as conn:
-            return await conn.fetch(query, *args, timeout=_QUERY_TIMEOUT)
+            return cast(list[Any], await conn.fetch(query, *args, timeout=_QUERY_TIMEOUT))
 
     async def user_stats(self, user_id: int) -> UserStats:
         summary = (await self._fetch(_USER_SUMMARY, user_id))[0]

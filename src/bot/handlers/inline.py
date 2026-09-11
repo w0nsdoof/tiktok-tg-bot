@@ -81,6 +81,8 @@ async def handle_inline_query(
         return
 
     settings = context.bot_data["settings"]
+    max_duration = user_store.get_runtime_int("max_duration", settings.max_duration)
+    max_file_size = user_store.get_runtime_int("max_file_size", settings.max_file_size)
 
     start_time = time.monotonic()
     structlog.contextvars.bind_contextvars(
@@ -127,12 +129,12 @@ async def handle_inline_query(
                 )
                 return
 
-            if metadata.duration and metadata.duration > settings.max_duration:
+            if metadata.duration and metadata.duration > max_duration:
                 status = "too_long"
                 await _safe_answer(query, [_error_article("error_too_long", lang)])
                 return
 
-            if metadata.file_size and metadata.file_size > settings.max_file_size * 1024 * 1024:
+            if metadata.file_size and metadata.file_size > max_file_size * 1024 * 1024:
                 status = "too_large"
                 await _safe_answer(query, [_error_article("error_too_large", lang)])
                 return
@@ -144,7 +146,7 @@ async def handle_inline_query(
             )
 
             actual_size = os.path.getsize(file_path)
-            if actual_size > settings.max_file_size * 1024 * 1024:
+            if actual_size > max_file_size * 1024 * 1024:
                 status = "too_large"
                 await _safe_answer(query, [_error_article("error_too_large", lang)])
                 return

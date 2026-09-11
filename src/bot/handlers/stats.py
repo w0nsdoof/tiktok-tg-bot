@@ -1,5 +1,7 @@
 """/stats and /top command handlers (read-side analytics)."""
 
+from collections.abc import Sequence
+
 import structlog
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -10,7 +12,7 @@ from bot.services.stats import StatsService
 log = structlog.get_logger()
 
 
-def _ranked(items: list) -> str:
+def _ranked(items: Sequence[tuple[object, int]]) -> str:
     if not items:
         return "—"
     return "\n".join(f"{i}. {name} — {n}" for i, (name, n) in enumerate(items, 1))
@@ -26,7 +28,8 @@ async def handle_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.effective_message.reply_text(get_message("stats_unavailable", lang))
         return
     user_store = context.bot_data["user_store"]
-    want_global = bool(context.args) and context.args[0].lower() == "all"
+    args = context.args or []
+    want_global = bool(args) and args[0].lower() == "all"
     try:
         if want_global and user_store.is_admin(user.id):
             g = await stats.global_stats()

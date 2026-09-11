@@ -50,6 +50,11 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Use the button below to request access."
         ),
         "request_access_button": "Request Access",
+        "link_created": (
+            "Open this private link within 10 minutes to connect your Telegram "
+            "and Authentik accounts:\n{url}"
+        ),
+        "link_unavailable": "Account linking is not configured right now.",
         "access_requested": (
             "Your access request has been sent to the admin. Please wait."
         ),
@@ -153,6 +158,11 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Нажмите кнопку ниже, чтобы запросить доступ."
         ),
         "request_access_button": "Запросить доступ",
+        "link_created": (
+            "Откройте эту приватную ссылку в течение 10 минут, чтобы связать "
+            "Telegram и Authentik:\n{url}"
+        ),
+        "link_unavailable": "Привязка аккаунта сейчас не настроена.",
         "access_requested": (
             "Ваш запрос на доступ отправлен администратору. Пожалуйста, подождите."
         ),

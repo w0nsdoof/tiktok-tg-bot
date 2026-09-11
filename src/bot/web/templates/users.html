@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Users · TikTok Bot{% endblock %}
+{% block content %}
+<section class="hero"><p class="eyebrow">Access</p><h1>Telegram users</h1><p>Authentik protects operator actions; linked identities are shown here.</p></section>
+<section class="panel table-wrap">
+<table><thead><tr><th>User</th><th>Authentik</th><th>Status</th><th>Role</th><th>Actions</th></tr></thead>
+<tbody>{% for item in users %}<tr>
+  <td><strong>{{ item.display_name or item.user_id }}</strong><small>{% if item.telegram_username %}@{{ item.telegram_username }} · {% endif %}{{ item.user_id }}</small></td>
+  <td>{{ item.authentik_username or "Not linked" }}</td>
+  <td><span class="badge {{ item.status }}">{{ item.status }}</span></td>
+  <td>{{ item.role }}</td>
+  <td class="actions">
+    <form method="post" action="/users/{{ item.user_id }}/status"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if item.status != "active" %}<button name="status" value="active">Approve</button>{% endif %}
+      {% if item.status == "pending" %}<button class="quiet" name="status" value="denied">Deny</button>{% elif item.status == "active" %}<button class="quiet" name="status" value="disabled">Disable</button>{% endif %}
+    </form>
+    {% if is_admin %}<form method="post" action="/users/{{ item.user_id }}/role"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><select name="role"><option value="user" {% if item.role == 'user' %}selected{% endif %}>User</option><option value="operator" {% if item.role == 'operator' %}selected{% endif %}>Operator</option><option value="admin" {% if item.role == 'admin' %}selected{% endif %}>Admin</option></select><button>Save</button></form>{% endif %}
+  </td>
+</tr>{% else %}<tr><td colspan="5">No users yet.</td></tr>{% endfor %}</tbody></table>
+</section>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Overview · TikTok Bot{% endblock %}
+{% block content %}
+<section class="hero"><p class="eyebrow">Control panel</p><h1>Bot overview</h1><p>Access and runtime policy backed by PostgreSQL.</p></section>
+<section class="cards">
+  <article><span>Active users</span><strong>{{ counts.active }}</strong></article>
+  <article><span>Pending</span><strong>{{ counts.pending }}</strong></article>
+  <article><span>Authentik-linked</span><strong>{{ counts.linked }}</strong></article>
+  <article><span>Bot admins</span><strong>{{ counts.admins }}</strong></article>
+  <article><span>Requests</span><strong>{{ counts.requests }}</strong></article>
+  <article><span>Downloads</span><strong>{{ counts.downloads }}</strong></article>
+</section>
+<section class="split">
+  <article class="panel"><h2>Top platforms</h2><ol>{% for name, count in stats.platforms %}<li><span>{{ name }}</span><strong>{{ count }}</strong></li>{% else %}<li>No data yet</li>{% endfor %}</ol></article>
+  <article class="panel"><h2>Top creators</h2><ol>{% for name, count in stats.creators %}<li><span>{{ name }}</span><strong>{{ count }}</strong></li>{% else %}<li>No data yet</li>{% endfor %}</ol></article>
+  <article class="panel"><h2>Top hashtags</h2><ol>{% for name, count in stats.hashtags %}<li><span>#{{ name }}</span><strong>{{ count }}</strong></li>{% else %}<li>No data yet</li>{% endfor %}</ol></article>
+</section>
+<section class="panel"><h2>Operations</h2><p>Use <a href="/users">Users</a> to resolve access requests and <a href="/settings">Settings</a> to adjust live download limits and group policy.</p></section>
+{% endblock %}

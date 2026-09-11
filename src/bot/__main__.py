@@ -5,6 +5,7 @@ from telegram.ext import (
     Application,
     CallbackQueryHandler,
     CommandHandler,
+    ContextTypes,
     InlineQueryHandler,
     MessageHandler,
     filters,
@@ -16,6 +17,7 @@ from bot.handlers.admin import (
     handle_access_callback,
     handle_access_denied,
     handle_add_forward,
+    handle_link,
     handle_request_access_callback,
     handle_start_denied,
 )
@@ -30,6 +32,11 @@ from bot.services.stats import StatsService
 from bot.services.user_store import UserStore
 
 
+async def refresh_access_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_store: UserStore = context.bot_data["user_store"]
+    await user_store.refresh()
+
+
 def main() -> None:
     settings = Settings()  # type: ignore[call-arg]
     setup_logging(settings)
@@ -37,28 +44,35 @@ def main() -> None:
 
     os.makedirs(settings.download_dir, exist_ok=True)
 
-    # Initialize user store — merges env seeds into persistent JSON
+    # PostgreSQL is authoritative when configured; JSON remains a migration fallback.
     user_store = UserStore(
         data_dir=settings.data_dir,
         seed_admin_ids=settings.admin_user_ids,
         seed_user_ids=settings.allowed_user_ids,
+        dsn=settings.effective_database_dsn,
+        runtime_defaults={
+            "max_duration": str(settings.max_duration),
+            "max_file_size": str(settings.max_file_size),
+            "group_access_mode": "open",
+        },
     )
-
-    if not user_store.get_admin_ids():
-        log.warning(
-            "bot.no_admins",
-            msg="No admin users configured — nobody can approve access requests",
-        )
 
     analytics = Analytics(
         settings.analytics_dsn.get_secret_value() if settings.analytics_dsn else None
     )
 
     async def _post_init(app_: object) -> None:
+        await user_store.initialize()
         await analytics.ensure_schema()
+        if not user_store.get_admin_ids():
+            log.warning(
+                "bot.no_admins",
+                msg="No admin users configured — nobody can approve access requests",
+            )
 
     async def _post_shutdown(app_: object) -> None:
         await analytics.close()
+        await user_store.close()
 
     app = (
         Application.builder()
@@ -96,6 +110,7 @@ def main() -> None:
     app.add_handler(MessageHandler(private & admin & filters.FORWARDED, handle_add_forward))
 
     # --- Private chat: whitelisted users ---
+    app.add_handler(CommandHandler("link", handle_link, filters=private))
     app.add_handler(CommandHandler("start", handle_start, filters=private & whitelist))
     app.add_handler(CommandHandler("help", handle_help, filters=private & whitelist))
     app.add_handler(CommandHandler("stats", handle_stats, filters=private & whitelist))
@@ -111,7 +126,7 @@ def main() -> None:
         MessageHandler(private & non_whitelist & private_text, handle_access_denied)
     )
 
-    # --- Group chat (open to all members, unchanged) ---
+    # --- Group chat (runtime policy is enforced inside the handler) ---
     group_filter = (
         (filters.ChatType.GROUP | filters.ChatType.SUPERGROUP) & filters.TEXT & ~filters.COMMAND
     )
@@ -130,6 +145,9 @@ def main() -> None:
     )
     assert app.job_queue is not None  # job-queue extra is a hard dependency
     app.job_queue.run_repeating(heartbeat_job, interval=30, first=0)
+    app.job_queue.run_repeating(
+        refresh_access_job, interval=15, first=15, name="access-store-refresh"
+    )
     app.run_polling()
     log.info("bot.shutdown")
 

@@ -150,6 +150,7 @@ async def test_inline_error_records_event():
     ctx = _make_context()
     ctx.bot_data["user_store"] = MagicMock()
     ctx.bot_data["user_store"].is_allowed.return_value = True
+    ctx.bot_data["user_store"].get_runtime_int.side_effect = lambda _, fallback: fallback
 
     update = MagicMock()
     query = update.inline_query
@@ -181,6 +182,7 @@ async def test_inline_slideshow_records_not_slideshow():
     ctx = _make_context()
     ctx.bot_data["user_store"] = MagicMock()
     ctx.bot_data["user_store"].is_allowed.return_value = True
+    ctx.bot_data["user_store"].get_runtime_int.side_effect = lambda _, fallback: fallback
 
     update = MagicMock()
     query = update.inline_query
@@ -211,6 +213,7 @@ async def test_inline_missing_file_id_records_download_error():
     ctx = _make_context()
     ctx.bot_data["user_store"] = MagicMock()
     ctx.bot_data["user_store"].is_allowed.return_value = True
+    ctx.bot_data["user_store"].get_runtime_int.side_effect = lambda _, fallback: fallback
 
     sent_message = AsyncMock()
     sent_message.video = None

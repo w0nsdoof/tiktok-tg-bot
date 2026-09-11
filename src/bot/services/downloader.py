@@ -7,6 +7,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import cast
 from uuid import uuid4
 
 import structlog
@@ -97,7 +98,7 @@ def _resolve_tiktok_shortlink(url: str) -> str:
         })
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
-                return resp.url
+                return cast(str, resp.url)
         except Exception:
             pass
     return url
