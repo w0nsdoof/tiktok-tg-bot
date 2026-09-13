@@ -10,7 +10,7 @@ _PLATFORM_PATTERNS: list[tuple[re.Pattern[str], Platform]] = [
     (re.compile(r"https?://vt\.tiktok\.com/\w+"), Platform.TIKTOK),
     (re.compile(r"https?://(?:www\.)?youtube\.com/shorts/[\w-]+"), Platform.YOUTUBE),
     (re.compile(r"https?://youtu\.be/[\w-]+"), Platform.YOUTUBE),
-    (re.compile(r"https?://(?:www\.)?instagram\.com/reels?/[\w-]+"), Platform.INSTAGRAM),
+    (re.compile(r"https?://(?:www\.)?instagram\.com/(?:reels?|p)/[\w-]+"), Platform.INSTAGRAM),
 ]
 
 _URL_RE = re.compile(r"https?://\S+")
