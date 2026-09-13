@@ -15,6 +15,7 @@ services:
     volumes:
       - downloads:/tmp/tg-bot-downloads
       - botdata:/app/src/data
+      - ./secrets:/app/secrets:ro
     networks:
       - default
       - db

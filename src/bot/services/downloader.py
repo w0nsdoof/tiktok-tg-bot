@@ -1,4 +1,5 @@
 import asyncio
+import io
 import json
 import os
 import re
@@ -126,7 +127,17 @@ def _ydl_opts(
     if cookies_file:
         cookie_path = Path(cookies_file)
         if cookie_path.is_file():
-            opts["cookiefile"] = str(cookie_path)
+            # yt-dlp writes cookies back on close; an in-memory copy keeps
+            # a read-only mount working and concurrent downloads from
+            # clobbering the shared file.
+            try:
+                opts["cookiefile"] = io.StringIO(cookie_path.read_text())
+            except OSError as exc:
+                log.warning(
+                    "instagram.cookies_file_unreadable",
+                    path=str(cookie_path),
+                    error=str(exc),
+                )
         else:
             log.warning("instagram.cookies_file_missing", path=str(cookie_path))
     return opts

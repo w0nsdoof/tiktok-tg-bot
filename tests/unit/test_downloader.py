@@ -2,6 +2,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+import yt_dlp
 
 from bot.services.downloader import (
     AudioResult,
@@ -34,13 +35,28 @@ class TestErrorClassification:
 
 
 class TestYtDlpOptions:
-    def test_existing_cookie_file_is_passed_to_yt_dlp(self, tmp_path):
+    def test_read_only_cookie_file_is_loaded_and_left_unchanged(self, tmp_path):
+        cookie_file = tmp_path / "instagram-cookies.txt"
+        content = (
+            "# Netscape HTTP Cookie File\n"
+            ".instagram.com\tTRUE\t/\tTRUE\t1999999999\tsessionid\tabc\n"
+        )
+        cookie_file.write_text(content)
+        cookie_file.chmod(0o444)
+
+        with yt_dlp.YoutubeDL(_ydl_opts(cookies_file=str(cookie_file))) as ydl:
+            assert [cookie.name for cookie in ydl.cookiejar] == ["sessionid"]
+
+        assert cookie_file.read_text() == content
+
+    def test_unreadable_cookie_file_is_ignored(self, tmp_path):
         cookie_file = tmp_path / "instagram-cookies.txt"
         cookie_file.write_text("# Netscape HTTP Cookie File\n")
+        cookie_file.chmod(0o000)
 
         opts = _ydl_opts(cookies_file=str(cookie_file))
 
-        assert opts["cookiefile"] == str(cookie_file)
+        assert "cookiefile" not in opts
 
     def test_missing_cookie_file_is_ignored(self, tmp_path):
         opts = _ydl_opts(cookies_file=str(tmp_path / "missing.txt"))
