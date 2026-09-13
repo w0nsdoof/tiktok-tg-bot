@@ -74,6 +74,7 @@ def _classify_error(error_msg: str) -> ErrorType:
             "cookies-from-browser",
             "registered users",
             "rate-limit reached",
+            "certain audiences",
         )
     ):
         return ErrorType.AUTH_REQUIRED

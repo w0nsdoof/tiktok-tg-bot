@@ -25,6 +25,13 @@ class TestErrorClassification:
     def test_explicit_private_or_deleted_content_remains_private(self):
         assert _classify_error("This post is private or deleted") == ErrorType.PRIVATE
 
+    def test_instagram_audience_restriction_is_auth_required(self):
+        message = (
+            "[Instagram] DczZiD_Nlf0: This content isn't available to everyone: "
+            "It can't be seen by certain audiences."
+        )
+        assert _classify_error(message) == ErrorType.AUTH_REQUIRED
+
 
 class TestYtDlpOptions:
     def test_existing_cookie_file_is_passed_to_yt_dlp(self, tmp_path):
