@@ -23,10 +23,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "error_download": "Something went wrong while downloading. Please try again.",
         "error_unknown": "An unexpected error occurred. Please try again later.",
         "help": (
-            "Send me a video link from TikTok, YouTube Shorts, or Instagram Reels "
-            "and I'll download it for you.\n\n"
+            "Send me a link from TikTok, YouTube Shorts, or Instagram "
+            "(Reels, photos, carousels) and I'll download it for you.\n\n"
             'Add "audio" or "mp3" to get the sound only.\n'
-            'Add "images" or "photos" to get slideshow pictures without audio.'
+            'Add "images" or "photos" to get only the pictures from a slideshow or post.'
             "\n\n/stats — your download stats\n"
             "/top tags | creators | #hashtag — leaderboards"
         ),
@@ -131,10 +131,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "error_download": "Произошла ошибка при скачивании. Попробуйте ещё раз.",
         "error_unknown": "Произошла непредвиденная ошибка. Попробуйте позже.",
         "help": (
-            "Отправьте мне ссылку на видео из TikTok, YouTube Shorts или Instagram Reels, "
-            "и я скачаю его для вас.\n\n"
+            "Отправьте мне ссылку из TikTok, YouTube Shorts или Instagram "
+            "(Reels, фото, карусели), и я всё скачаю.\n\n"
             "Добавьте «аудио» или «звук», чтобы получить только звук.\n"
-            "Добавьте «картинки» или «фото», чтобы получить фотографии слайдшоу без аудио."
+            "Добавьте «картинки» или «фото», чтобы получить только фотографии "
+            "из слайдшоу или поста."
             "\n\n/stats — ваша статистика загрузок\n"
             "/top tags | creators | #хэштег — рейтинги"
         ),

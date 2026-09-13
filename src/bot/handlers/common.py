@@ -2,7 +2,7 @@ import os
 import time
 
 import structlog
-from telegram import InputMediaPhoto, Message
+from telegram import InputMediaPhoto, InputMediaVideo, Message
 from telegram.constants import ChatAction
 from telegram.ext import ContextTypes
 
@@ -13,9 +13,11 @@ from bot.models.video_info import VideoInfo
 from bot.services.analytics import Analytics, DownloadEvent
 from bot.services.downloader import (
     ErrorType,
+    MediaFile,
     SlideshowResult,
     VideoDownloadError,
     download_audio,
+    download_instagram_media,
     download_slideshow,
     download_video,
     extract_metadata,
@@ -39,22 +41,47 @@ _ERROR_TYPE_TO_MESSAGE_KEY: dict[ErrorType, str] = {
 }
 
 
+async def _send_media(
+    message: Message, files: list[MediaFile], *, reply_to: int | None = None
+) -> None:
+    """Send photos/videos as albums of up to 10; Telegram rejects 1-item albums."""
+    for batch_start in range(0, len(files), 10):
+        batch = files[batch_start : batch_start + 10]
+        handles = [open(f.path, "rb") for f in batch]  # noqa: SIM115
+        try:
+            if len(batch) == 1 and batch[0].is_video:
+                await message.reply_video(
+                    video=handles[0],
+                    supports_streaming=True,
+                    reply_to_message_id=reply_to,
+                )
+            elif len(batch) == 1:
+                await message.reply_photo(photo=handles[0], reply_to_message_id=reply_to)
+            else:
+                media = [
+                    InputMediaVideo(media=h, supports_streaming=True)
+                    if f.is_video
+                    else InputMediaPhoto(media=h)
+                    for f, h in zip(batch, handles, strict=True)
+                ]
+                await message.reply_media_group(
+                    media=media,
+                    reply_to_message_id=reply_to,
+                )
+        finally:
+            for h in handles:
+                h.close()
+
+
 async def _send_slideshow(
     message: Message, slideshow: SlideshowResult, *, reply_to: int | None = None
 ) -> None:
     """Send slideshow images as media group(s) and audio if available."""
-    for batch_start in range(0, len(slideshow.image_paths), 10):
-        batch = slideshow.image_paths[batch_start : batch_start + 10]
-        handles = [open(p, "rb") for p in batch]  # noqa: SIM115
-        media = [InputMediaPhoto(media=h) for h in handles]
-        try:
-            await message.reply_media_group(
-                media=media,
-                reply_to_message_id=reply_to,
-            )
-        finally:
-            for h in handles:
-                h.close()
+    await _send_media(
+        message,
+        [MediaFile(path=p, is_video=False) for p in slideshow.image_paths],
+        reply_to=reply_to,
+    )
 
     if slideshow.audio_path and os.path.exists(slideshow.audio_path):
         with open(slideshow.audio_path, "rb") as audio_file:
@@ -126,6 +153,7 @@ async def process_request(
     sent_file_size: int | None = None
     file_path: str | None = None
     slideshow: SlideshowResult | None = None
+    media_files: list[MediaFile] = []
     try:
         async with queue.acquire():
             metadata = await extract_metadata(
@@ -146,9 +174,19 @@ async def process_request(
                 await message.reply_text(get_message("error_too_large", lang))
                 return
 
-            if output_format == OutputFormat.IMAGES and not metadata.is_slideshow:
+            photo_items = [item for item in metadata.media_items if not item.is_video]
+            if (
+                output_format == OutputFormat.IMAGES
+                and not metadata.is_slideshow
+                and not photo_items
+            ):
                 status = "not_slideshow"
                 await message.reply_text(get_message("error_not_slideshow", lang))
+                return
+
+            if output_format == OutputFormat.AUDIO and metadata.media_items:
+                status = "no_audio"
+                await message.reply_text(get_message("error_no_audio", lang))
                 return
 
             if output_format == OutputFormat.AUDIO:
@@ -179,6 +217,28 @@ async def process_request(
                     )
                 await status_msg.delete()
 
+            elif metadata.media_items:
+                status_msg = await message.reply_text(
+                    get_message("downloading_photos", lang)
+                )
+                await context.bot.send_chat_action(
+                    chat_id=message.chat_id, action=ChatAction.UPLOAD_PHOTO
+                )
+                media_files = await download_instagram_media(
+                    photo_items
+                    if output_format == OutputFormat.IMAGES
+                    else metadata.media_items,
+                    settings.download_dir,
+                    max_file_size * 1024 * 1024,
+                )
+                sent_file_size = sum(os.path.getsize(f.path) for f in media_files)
+                await status_msg.edit_text(get_message("sending_photos", lang))
+                await context.bot.send_chat_action(
+                    chat_id=message.chat_id, action=ChatAction.UPLOAD_PHOTO
+                )
+                await _send_media(message, media_files, reply_to=reply_to)
+                await status_msg.delete()
+
             elif metadata.is_slideshow:
                 if output_format == OutputFormat.IMAGES:
                     # Images only, no audio
@@ -199,18 +259,11 @@ async def process_request(
                         chat_id=message.chat_id, action=ChatAction.UPLOAD_PHOTO
                     )
                     # Send only images (no audio)
-                    for batch_start in range(0, len(slideshow.image_paths), 10):
-                        batch = slideshow.image_paths[batch_start : batch_start + 10]
-                        handles = [open(p, "rb") for p in batch]  # noqa: SIM115
-                        media = [InputMediaPhoto(media=h) for h in handles]
-                        try:
-                            await message.reply_media_group(
-                                media=media,
-                                reply_to_message_id=reply_to,
-                            )
-                        finally:
-                            for h in handles:
-                                h.close()
+                    await _send_media(
+                        message,
+                        [MediaFile(path=p, is_video=False) for p in slideshow.image_paths],
+                        reply_to=reply_to,
+                    )
                     await status_msg.delete()
                 else:
                     # DEFAULT: images + audio
@@ -278,6 +331,9 @@ async def process_request(
             os.remove(file_path)
         if slideshow:
             _cleanup_slideshow(slideshow)
+        for media_file in media_files:
+            if os.path.exists(media_file.path):
+                os.remove(media_file.path)
         user = message.from_user
         analytics.record(
             DownloadEvent(

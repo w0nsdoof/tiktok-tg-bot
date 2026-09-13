@@ -7,9 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from bot.locales.messages import get_message
 from bot.models.request import OutputFormat
 from bot.services.downloader import (
     AudioResult,
+    MediaFile,
+    MediaItem,
     SlideshowResult,
     VideoMetadata,
 )
@@ -98,7 +101,7 @@ class TestDefaultSlideshow:
         audio = tmp_path / "audio.m4a"
         audio.write_bytes(b"audio")
         slideshow = SlideshowResult(
-            image_paths=[str(img)], audio_path=str(audio), title="Slide"
+            image_paths=[str(img), str(img)], audio_path=str(audio), title="Slide"
         )
 
         msg = _make_message()
@@ -178,7 +181,7 @@ class TestImagesSlideshow:
         img = tmp_path / "img.jpeg"
         img.write_bytes(b"img")
         slideshow = SlideshowResult(
-            image_paths=[str(img)], audio_path=None, title="Slide"
+            image_paths=[str(img), str(img)], audio_path=None, title="Slide"
         )
 
         msg = _make_message()
@@ -224,3 +227,112 @@ class TestImagesVideoError:
         assert "video" in error_call.args[0].lower() or "slideshow" in error_call.args[0].lower()
         msg.reply_video.assert_not_called()
         msg.reply_media_group.assert_not_called()
+
+
+class TestSlideshowAlbumSplit:
+    """Telegram rejects 1-item albums, so a leftover image is sent on its own."""
+
+    @pytest.mark.asyncio
+    async def test_eleven_images_sent_as_album_plus_single_photo(self, tmp_path):
+        img = tmp_path / "img.jpeg"
+        img.write_bytes(b"img")
+        slideshow = SlideshowResult(image_paths=[str(img)] * 11, audio_path=None, title="Slide")
+
+        msg = _make_message()
+        ctx = _make_context()
+
+        with (
+            patch("bot.handlers.common.extract_url", return_value=(VIDEO_URL, MagicMock())),
+            patch("bot.handlers.common.parse_output_format", return_value=OutputFormat.DEFAULT),
+            patch("bot.handlers.common.extract_metadata", return_value=SLIDESHOW_METADATA),
+            patch("bot.handlers.common.download_slideshow", return_value=slideshow),
+        ):
+            from bot.handlers.common import process_request
+            await process_request(msg, f"{VIDEO_URL}", "en", ctx)
+
+        msg.reply_media_group.assert_called_once()
+        assert len(msg.reply_media_group.call_args.kwargs["media"]) == 10
+        msg.reply_photo.assert_called_once()
+
+
+IG_URL = "https://www.instagram.com/p/abc/"
+
+
+def _ig_metadata(*kinds):
+    items = [
+        MediaItem(url=f"https://cdn/{i}", is_video=kind == "video")
+        for i, kind in enumerate(kinds)
+    ]
+    return VideoMetadata(duration=None, file_size=None, title="Post", media_items=items)
+
+
+def _media_files(tmp_path, *kinds):
+    files = []
+    for i, kind in enumerate(kinds):
+        path = tmp_path / f"{i}.{'mp4' if kind == 'video' else 'jpg'}"
+        path.write_bytes(b"data")
+        files.append(MediaFile(path=str(path), is_video=kind == "video"))
+    return files
+
+
+class TestInstagramMedia:
+    """Instagram photo and carousel posts -> photos/videos sent as albums."""
+
+    async def _run(self, text, output_format, metadata, files=None):
+        msg = _make_message()
+        ctx = _make_context()
+        with (
+            patch("bot.handlers.common.extract_url", return_value=(IG_URL, MagicMock())),
+            patch("bot.handlers.common.parse_output_format", return_value=output_format),
+            patch("bot.handlers.common.extract_metadata", return_value=metadata),
+            patch(
+                "bot.handlers.common.download_instagram_media", return_value=files
+            ) as mock_dl,
+            patch("bot.handlers.common.download_audio") as mock_audio,
+        ):
+            from bot.handlers.common import process_request
+            await process_request(msg, text, "en", ctx)
+        return msg, mock_dl, mock_audio
+
+    @pytest.mark.asyncio
+    async def test_single_photo_sent_as_photo(self, tmp_path):
+        msg, _, _ = await self._run(
+            IG_URL, OutputFormat.DEFAULT, _ig_metadata("photo"), _media_files(tmp_path, "photo")
+        )
+
+        msg.reply_photo.assert_called_once()
+        msg.reply_media_group.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_eleven_items_sent_as_album_plus_single(self, tmp_path):
+        kinds = ["photo"] * 10 + ["video"]
+
+        msg, _, _ = await self._run(
+            IG_URL, OutputFormat.DEFAULT, _ig_metadata(*kinds), _media_files(tmp_path, *kinds)
+        )
+
+        msg.reply_media_group.assert_called_once()
+        assert len(msg.reply_media_group.call_args.kwargs["media"]) == 10
+        msg.reply_video.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_images_keyword_downloads_only_photos(self, tmp_path):
+        _, mock_dl, _ = await self._run(
+            f"images {IG_URL}",
+            OutputFormat.IMAGES,
+            _ig_metadata("photo", "video", "photo"),
+            _media_files(tmp_path, "photo", "photo"),
+        )
+
+        requested = mock_dl.call_args.args[0]
+        assert [item.is_video for item in requested] == [False, False]
+
+    @pytest.mark.asyncio
+    async def test_audio_keyword_replies_no_audio(self):
+        msg, mock_dl, mock_audio = await self._run(
+            f"audio {IG_URL}", OutputFormat.AUDIO, _ig_metadata("photo")
+        )
+
+        mock_audio.assert_not_called()
+        mock_dl.assert_not_called()
+        assert msg.reply_text.call_args.args[0] == get_message("error_no_audio", "en")

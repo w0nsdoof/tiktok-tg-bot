@@ -128,7 +128,7 @@ async def handle_inline_query(
             )
             video_info = metadata.info
 
-            if metadata.is_slideshow:
+            if metadata.is_slideshow or metadata.media_items:
                 status = "not_slideshow"
                 await _safe_answer(
                     query, [_error_article("error_slideshow_inline", lang)]

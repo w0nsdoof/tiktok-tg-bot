@@ -1,4 +1,6 @@
+import io
 import os
+import urllib.error
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -7,9 +9,11 @@ import yt_dlp
 from bot.services.downloader import (
     AudioResult,
     ErrorType,
+    MediaItem,
     VideoDownloadError,
     _classify_error,
     _download_audio_sync,
+    _download_instagram_media_sync,
     _extract_metadata_sync,
     _ydl_opts,
 )
@@ -246,3 +250,110 @@ class TestMetadataVideoInfo:
             meta = _extract_metadata_sync("https://www.tiktok.com/@u/video/123")
         assert meta.info is None
         assert meta.duration == 10  # metadata itself still works
+
+
+class TestInstagramMetadata:
+    def _extract(self, raw, processed=None):
+        ydl = MagicMock()
+        ydl.extract_info.return_value = raw
+        ydl.process_ie_result.return_value = processed
+        cm = MagicMock()
+        cm.__enter__ = MagicMock(return_value=ydl)
+        cm.__exit__ = MagicMock(return_value=False)
+        with patch("bot.services.downloader.yt_dlp.YoutubeDL", return_value=cm):
+            meta = _extract_metadata_sync("https://www.instagram.com/p/abc/")
+        return meta, ydl
+
+    def test_single_photo_uses_largest_image(self):
+        raw = {
+            "id": "abc",
+            "extractor_key": "Instagram",
+            "formats": [],
+            "thumbnails": [
+                {"url": "https://cdn/small.jpg", "width": 150},
+                {"url": "https://cdn/full.jpg", "width": 1080},
+            ],
+        }
+
+        meta, ydl = self._extract(raw)
+
+        assert meta.media_items == [MediaItem(url="https://cdn/full.jpg", is_video=False)]
+        ydl.process_ie_result.assert_not_called()
+
+    def test_carousel_keeps_order_and_picks_best_progressive_video(self):
+        raw = {
+            "_type": "playlist",
+            "id": "abc",
+            "extractor_key": "Instagram",
+            "entries": [
+                {"formats": [], "thumbnails": [{"url": "https://cdn/photo.jpg", "width": 1080}]},
+                {
+                    "formats": [
+                        {"format_id": "dash-hd", "url": "https://cdn/dash.mp4", "height": 1920},
+                        {"format_id": "101", "url": "https://cdn/720.mp4", "height": 720},
+                        {"format_id": "102", "url": "https://cdn/1080.mp4", "height": 1080},
+                    ],
+                    "thumbnails": [{"url": "https://cdn/cover.jpg", "width": 1080}],
+                },
+            ],
+        }
+
+        meta, _ = self._extract(raw)
+
+        assert meta.media_items == [
+            MediaItem(url="https://cdn/photo.jpg", is_video=False),
+            MediaItem(url="https://cdn/1080.mp4", is_video=True),
+        ]
+
+    def test_single_video_goes_through_normal_processing(self):
+        raw = {
+            "id": "abc",
+            "extractor_key": "Instagram",
+            "formats": [{"format_id": "101", "url": "https://cdn/v.mp4"}],
+        }
+
+        meta, _ = self._extract(raw, processed={**raw, "duration": 12})
+
+        assert meta.media_items == []
+        assert meta.duration == 12
+
+
+class TestDownloadInstagramMediaSync:
+    PHOTO = MediaItem(url="https://cdn/p.jpg", is_video=False)
+    VIDEO = MediaItem(url="https://cdn/v.mp4", is_video=True)
+
+    def _urlopen(self, bodies):
+        def fake(req, timeout):
+            body = bodies[req.full_url]
+            if isinstance(body, Exception):
+                raise body
+            return io.BytesIO(body)
+
+        return patch("bot.services.downloader.urllib.request.urlopen", side_effect=fake)
+
+    def test_oversized_video_is_skipped(self, tmp_path):
+        bodies = {self.PHOTO.url: b"photo", self.VIDEO.url: b"x" * 100}
+
+        with self._urlopen(bodies):
+            files = _download_instagram_media_sync(
+                [self.PHOTO, self.VIDEO], str(tmp_path), max_bytes=50
+            )
+
+        assert [f.is_video for f in files] == [False]
+        assert os.listdir(tmp_path) == [os.path.basename(files[0].path)]
+
+    def test_only_oversized_videos_raises_too_large(self, tmp_path):
+        with self._urlopen({self.VIDEO.url: b"x" * 100}), pytest.raises(VideoDownloadError) as exc:
+            _download_instagram_media_sync([self.VIDEO], str(tmp_path), max_bytes=50)
+
+        assert exc.value.error_type == ErrorType.TOO_LARGE
+        assert os.listdir(tmp_path) == []
+
+    def test_network_failure_removes_partial_files(self, tmp_path):
+        bodies = {self.PHOTO.url: b"photo", self.VIDEO.url: urllib.error.URLError("boom")}
+
+        with self._urlopen(bodies), pytest.raises(VideoDownloadError) as exc:
+            _download_instagram_media_sync([self.PHOTO, self.VIDEO], str(tmp_path), max_bytes=1000)
+
+        assert exc.value.error_type == ErrorType.DOWNLOAD_ERROR
+        assert os.listdir(tmp_path) == []

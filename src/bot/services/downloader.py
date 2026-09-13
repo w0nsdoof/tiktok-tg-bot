@@ -3,12 +3,13 @@ import io
 import json
 import os
 import re
+import shutil
 import time
 import urllib.request
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 from uuid import uuid4
 
 import structlog
@@ -41,12 +42,25 @@ class VideoDownloadError(DownloadError):
 
 
 @dataclass
+class MediaItem:
+    url: str
+    is_video: bool
+
+
+@dataclass
+class MediaFile:
+    path: str
+    is_video: bool
+
+
+@dataclass
 class VideoMetadata:
     duration: int | None
     file_size: int | None
     title: str | None
     is_slideshow: bool = False
     info: VideoInfo | None = None
+    media_items: list[MediaItem] = field(default_factory=list)
 
 
 @dataclass
@@ -143,6 +157,36 @@ def _ydl_opts(
     return opts
 
 
+def _instagram_media_items(info: dict[str, Any]) -> list[MediaItem]:
+    """Ordered photos/videos of a photo or carousel post; empty for a single video."""
+    if info.get("_type") == "playlist":
+        entries = list(info.get("entries") or [])
+    elif not info.get("formats"):
+        entries = [info]
+    else:
+        return []
+
+    items: list[MediaItem] = []
+    for entry in entries:
+        formats = entry.get("formats") or []
+        if formats:
+            # DASH formats are separate video/audio streams; progressive ones are complete.
+            progressive = [
+                f
+                for f in formats
+                if f.get("url") and not str(f.get("format_id", "")).startswith("dash")
+            ]
+            if progressive:
+                best = max(progressive, key=lambda f: f.get("height") or 0)
+                items.append(MediaItem(url=best["url"], is_video=True))
+        else:
+            thumbnails = [t for t in entry.get("thumbnails") or [] if t.get("url")]
+            if thumbnails:
+                best = max(thumbnails, key=lambda t: t.get("width") or 0)
+                items.append(MediaItem(url=best["url"], is_video=False))
+    return items
+
+
 def _extract_metadata_sync(
     url: str, cookies_file: str | None = None
 ) -> VideoMetadata:
@@ -151,7 +195,16 @@ def _extract_metadata_sync(
     ydl_opts = _ydl_opts(skip_download=True, cookies_file=cookies_file)
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(normalized_url, download=False)
+            media_items: list[MediaItem] = []
+            if "instagram.com/" in normalized_url:
+                # Unprocessed info, so photo and carousel posts don't trip
+                # yt-dlp's "No video formats found" check.
+                info = ydl.extract_info(normalized_url, download=False, process=False)
+                media_items = _instagram_media_items(info) if info else []
+                if info and not media_items:
+                    info = ydl.process_ie_result(info, download=False)
+            else:
+                info = ydl.extract_info(normalized_url, download=False)
             if info is None:
                 raise VideoDownloadError(ErrorType.NOT_VIDEO, "Could not extract video info")
             is_slideshow = info.get("vcodec") == "none" and "/photo/" in resolved_url
@@ -166,6 +219,7 @@ def _extract_metadata_sync(
                 title=info.get("title"),
                 is_slideshow=is_slideshow,
                 info=video_info,
+                media_items=media_items,
             )
     except yt_dlp.utils.DownloadError as e:
         raise VideoDownloadError(_classify_error(str(e)), str(e)) from e
@@ -350,6 +404,40 @@ def _download_slideshow_sync(
     return SlideshowResult(image_paths=image_paths, audio_path=audio_path, title=title)
 
 
+def _download_instagram_media_sync(
+    items: list[MediaItem], output_dir: str, max_bytes: int
+) -> list[MediaFile]:
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    prefix = f"{uuid4().hex[:8]}_ig_"
+    files: list[MediaFile] = []
+    try:
+        for i, item in enumerate(items):
+            dest = os.path.join(output_dir, f"{prefix}{i}.{'mp4' if item.is_video else 'jpg'}")
+            req = urllib.request.Request(item.url, headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/131.0.0.0 Safari/537.36"
+                ),
+            })
+            with urllib.request.urlopen(req, timeout=30) as resp, open(dest, "wb") as f:
+                shutil.copyfileobj(resp, f)
+            if item.is_video and os.path.getsize(dest) > max_bytes:
+                os.remove(dest)
+                log.info("instagram_media.video_too_large", url=item.url)
+                continue
+            files.append(MediaFile(path=dest, is_video=item.is_video))
+    except OSError as e:
+        for name in os.listdir(output_dir):
+            if name.startswith(prefix):
+                os.remove(os.path.join(output_dir, name))
+        raise VideoDownloadError(ErrorType.DOWNLOAD_ERROR, str(e)) from e
+
+    if not files:
+        raise VideoDownloadError(ErrorType.TOO_LARGE, "All videos exceed the size limit")
+    return files
+
+
 async def download_audio(
     url: str, output_dir: str, cookies_file: str | None = None
 ) -> AudioResult:
@@ -410,6 +498,32 @@ async def download_slideshow(
             error_type=e.error_type.value,
             duration_ms=duration_ms,
             url=url,
+        )
+        raise
+
+
+async def download_instagram_media(
+    items: list[MediaItem], output_dir: str, max_bytes: int
+) -> list[MediaFile]:
+    start = time.monotonic()
+    log.info("instagram_media_download.started", item_count=len(items))
+    try:
+        files = await asyncio.to_thread(
+            _download_instagram_media_sync, items, output_dir, max_bytes
+        )
+        duration_ms = int((time.monotonic() - start) * 1000)
+        log.info(
+            "instagram_media_download.completed",
+            duration_ms=duration_ms,
+            file_count=len(files),
+        )
+        return files
+    except VideoDownloadError as e:
+        duration_ms = int((time.monotonic() - start) * 1000)
+        log.warning(
+            "instagram_media_download.failed",
+            error_type=e.error_type.value,
+            duration_ms=duration_ms,
         )
         raise
 
