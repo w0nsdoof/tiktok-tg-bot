@@ -1,63 +1,43 @@
-# tiktok-tg-bot Development Guidelines
+# tiktok-tg-bot
 
-Auto-generated from all feature plans. Last updated: 2026-07-20
+Telegram bot (long polling, outbound only) that downloads TikTok videos/slideshows, YouTube
+Shorts and Instagram reels/posts. The optional `web` service (Compose profile `control-panel`)
+is an Authentik-OIDC FastAPI panel for access and runtime settings. Human docs: `README.md`,
+`docs/control-panel.md`.
 
-## Active Technologies
-- Python 3.12 + python-telegram-bot 21.x (21.11.1), yt-dlp, pydantic-settings, structlog
+## Stack
 
-## Project Structure
-
-```text
-src/bot/
-├── handlers/
-│   ├── common.py       # Shared process_request() helper (format routing)
-│   ├── private.py      # Private chat handler
-│   ├── group.py        # Group chat handler
-│   ├── inline.py       # Inline mode handler
-│   ├── admin.py        # Access management
-│   └── stats.py        # /stats and /top commands
-├── locales/
-│   └── messages.py     # EN/RU message catalog
-├── models/
-│   ├── request.py      # Platform, OutputFormat, VideoRequest
-│   └── video_info.py   # VideoInfo (parsed yt-dlp metadata)
-└── services/
-    ├── format_parser.py # Format keyword detection
-    ├── downloader.py    # yt-dlp download (video, audio, slideshow)
-    ├── url_parser.py    # URL extraction and platform detection
-    ├── queue.py         # Async download queue
-    ├── user_store.py    # Persistent whitelist (JSON)
-    ├── analytics.py     # Download events + video metadata into Postgres
-    └── stats.py         # Read-side analytics queries (StatsService)
-tests/
-├── unit/
-│   ├── test_format_parser.py   # Keyword detection tests
-│   ├── test_downloader.py      # Audio download tests
-│   └── test_handler_routing.py # 6-branch routing matrix tests
-└── integration/
-```
+Python 3.12, uv, python-telegram-bot 21 (job-queue), yt-dlp (ffmpeg + deno in the image),
+asyncpg/PostgreSQL, FastAPI + Authlib, pydantic-settings, structlog.
 
 ## Commands
 
-- Install deps: `uv sync`
-- Run bot: `cd src && uv run python -m bot`
-- Tests: `uv run pytest` (from repo root)
-- Lint: `cd src && uv run ruff check .`
+- Install: `uv sync --extra dev` (dev tools are an extra; plain `uv sync` removes pytest/ruff/mypy)
+- Run bot: `cd src && uv run python -m bot` (settings load `../.env`; `DATA_DIR=data` is under `src/`)
+- Tests: `uv run pytest` · Lint: `uv run ruff check .` · Types: `uv run mypy` (strict)
 
-## Code Style
+## Layout
 
-Python 3.12: Follow standard conventions
+- `src/bot/__main__.py` — handler/filter wiring, heartbeat and access-refresh jobs
+- `src/bot/handlers/` — private, group, inline, admin (access requests, `/link`), stats
+  (`/stats`, `/top`); `common.py` holds the shared download-and-send flow
+- `src/bot/services/` — `downloader` (yt-dlp), `url_parser`, `format_parser`, `queue`,
+  `user_store` (users, roles, runtime settings), `analytics` (writes), `stats` (reads)
+- `src/bot/web.py` — control panel (`bot.web:create_app`); `src/bot/locales/messages.py` — EN/RU text
+- `tests/unit/` — all tests; `docs/superpowers/` — historical specs/plans, don't edit
 
-## Recent Changes
-- 004-analytics-surfaces: /stats + /top commands (StatsService reads via shared asyncpg pool), Grafana bot dashboard + tiktokbot datasource
-- 003-analytics-data-layer: download events + video metadata into shared Postgres (asyncpg, fire-and-forget)
-- 002-output-format-selection: Added format keyword detection (audio/images), audio extraction via FFmpegExtractAudio, shared handler logic, 40 unit tests
-- 001-video-download-bot: Initial bot with video/slideshow download, whitelist, inline mode
+## Gotchas
 
-<!-- MANUAL ADDITIONS START -->
+- PostgreSQL (`DATABASE_DSN`, else `ANALYTICS_DSN`) is authoritative for access and runtime
+  settings; `ADMIN_USER_IDS`, `ALLOWED_USER_IDS` and `data/allowed_users.json` are import seeds.
+  The bot re-reads the store every 15 s, so panel changes apply without restart.
+- Analytics is fire-and-forget: DB errors are logged and dropped, never block a download.
+- Liveness is the `data/heartbeat` mtime (written every 30 s); Compose marks the bot unhealthy
+  after 90 s.
+- Keep `httpx`/`httpcore` logging at WARNING: Telegram API URLs contain the bot token.
+- The Instagram cookies file is mounted read-only and handed to yt-dlp as an in-memory copy,
+  because yt-dlp rewrites its cookie file on close.
 
-## Quick Start
+## Deploy
 
-See [README.md](README.md) for setup instructions and configuration options.
-
-<!-- MANUAL ADDITIONS END -->
+Push to `master`, then `make deploy-bot` from `~/coding/petprojects` (rebuilds `bot` and `web`).
