@@ -57,7 +57,7 @@ specs/001-video-download-bot/
 ├── quickstart.md        # Phase 1 output — setup and run instructions
 ├── contracts/           # Phase 1 output — bot interface contract
 │   └── telegram-bot-interface.md
-└── tasks.md             # Phase 2 output (/speckit.tasks command)
+└── tasks.md             # Phase 2 output
 ```
 
 ### Source Code (repository root)

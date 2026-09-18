@@ -1,7 +1,8 @@
-# Specification Quality Checklist: Output Format Selection
+# Specification Quality Checklist: Video Download Bot
 
-**Purpose**: Validate specification completeness and quality before proceeding to planning
-**Created**: 2026-03-12
+**Purpose**: Validate specification completeness and quality
+before proceeding to planning
+**Created**: 2026-02-24
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
@@ -16,7 +17,7 @@
 - [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
-- [x] Success criteria are technology-agnostic (no implementation details)
+- [x] Success criteria are technology-agnostic
 - [x] All acceptance scenarios are defined
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded
@@ -31,5 +32,8 @@
 
 ## Notes
 
-- All items pass validation. Spec is ready for `/speckit.clarify` or `/speckit.plan`.
-- Assumptions section documents key design decisions (keyword-based format selection, no re-encoding, inline mode excluded).
+- All items pass. Spec is ready for clarification or planning.
+- Duration cap of 5 minutes is documented as an assumption;
+  user may adjust during clarification.
+- Telegram's 50 MB file limit is a platform constraint, not an
+  implementation detail.

@@ -45,7 +45,7 @@ specs/002-output-format-selection/
 ├── quickstart.md        # Phase 1 output
 ├── contracts/           # Phase 1 output
 │   └── format-keywords.md
-└── tasks.md             # Phase 2 output (NOT created by /speckit.plan)
+└── tasks.md             # Phase 2 output
 ```
 
 ### Source Code (repository root)
