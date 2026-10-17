@@ -66,11 +66,14 @@ deployment configuration.
 
 ## Deployment
 
-The server holds a git checkout of this repo and its `.env`. `make deploy-bot` in the
-petprojects control repo runs `git pull && docker compose --profile control-panel up -d --build`
-there, rebuilding both the bot and the control panel.
+`make deploy-bot` in the petprojects control repo builds the pushed HEAD locally and
+ships it to the server as one image for both the bot and the control panel, then waits
+until both are healthy; `make rollback-bot` switches back. The server dir holds the
+compose file, `.env` and `secrets/`.
 
-After a `.env` change use `docker compose up -d`; `restart` does not reload it.
+After a `.env` change rerun `make deploy-bot` (it recreates on the same image);
+`restart` does not reload `.env`, and a bare `docker compose up` on the box would
+build a `dev` image there.
 
 ## Tech Stack
 
