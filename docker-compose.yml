@@ -1,6 +1,7 @@
 services:
   bot:
     build: .
+    image: localhost:5000/tiktok-tg-bot:${TAG:-dev}
     restart: unless-stopped
     env_file: .env
     cap_drop: [ALL]
@@ -21,6 +22,7 @@ services:
       - db
   web:
     build: .
+    image: localhost:5000/tiktok-tg-bot:${TAG:-dev}
     container_name: tiktok-bot-web
     profiles: [control-panel]
     restart: unless-stopped
