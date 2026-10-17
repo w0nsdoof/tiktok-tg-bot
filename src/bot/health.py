@@ -10,6 +10,11 @@ def heartbeat_path(data_dir: str) -> Path:
     return Path(data_dir) / HEARTBEAT_FILENAME
 
 
+def clear_heartbeat(data_dir: str) -> None:
+    # The file sits in a persistent volume; a new container must not inherit the old beat.
+    heartbeat_path(data_dir).unlink(missing_ok=True)
+
+
 def write_heartbeat(data_dir: str) -> None:
     heartbeat_path(data_dir).write_text(str(int(time.time())))
 

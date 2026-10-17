@@ -1,7 +1,13 @@
 import time
 from types import SimpleNamespace
 
-from bot.health import HEARTBEAT_FILENAME, heartbeat_job, heartbeat_path, write_heartbeat
+from bot.health import (
+    HEARTBEAT_FILENAME,
+    clear_heartbeat,
+    heartbeat_job,
+    heartbeat_path,
+    write_heartbeat,
+)
 
 
 class TestWriteHeartbeat:
@@ -21,6 +27,16 @@ class TestWriteHeartbeat:
 
     def test_heartbeat_path_joins_filename(self, tmp_path):
         assert heartbeat_path(str(tmp_path)) == tmp_path / HEARTBEAT_FILENAME
+
+
+class TestClearHeartbeat:
+    def test_removes_heartbeat_left_by_previous_container(self, tmp_path):
+        write_heartbeat(str(tmp_path))
+        clear_heartbeat(str(tmp_path))
+        assert not (tmp_path / HEARTBEAT_FILENAME).exists()
+
+    def test_missing_file_is_fine(self, tmp_path):
+        clear_heartbeat(str(tmp_path))
 
 
 class TestHeartbeatJob:

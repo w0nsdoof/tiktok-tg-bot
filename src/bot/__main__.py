@@ -27,7 +27,7 @@ from bot.handlers.group import handle_group_message
 from bot.handlers.inline import handle_inline_query
 from bot.handlers.private import handle_help, handle_private_message, handle_start
 from bot.handlers.stats import handle_stats, handle_top
-from bot.health import heartbeat_job
+from bot.health import clear_heartbeat, heartbeat_job
 from bot.logging import setup_logging
 from bot.services.analytics import Analytics
 from bot.services.stats import StatsService
@@ -64,6 +64,7 @@ async def refresh_access_job(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 def main() -> None:
     settings = Settings()  # type: ignore[call-arg]
+    clear_heartbeat(settings.data_dir)
     setup_logging(settings)
     log = structlog.get_logger()
 
