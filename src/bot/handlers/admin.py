@@ -8,6 +8,7 @@ from telegram import (
     MessageOriginUser,
     Update,
 )
+from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 from bot.locales.messages import get_message
@@ -91,8 +92,7 @@ async def handle_request_access_callback(
     await query.edit_message_text(get_message("access_requested", lang))
 
     # Notify all admins
-    name = user.full_name or "Unknown"
-    username = user.username or "none"
+    username = f"@{user.username}" if user.username else "—"
     admin_ids = user_store.get_admin_ids()
 
     keyboard = [
@@ -114,10 +114,11 @@ async def handle_request_access_callback(
                 text=get_message(
                     "admin_access_request",
                     lang,
-                    name=name,
+                    name=user.mention_html(),
                     user_id=user.id,
                     username=username,
                 ),
+                parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(keyboard),
             )
         except Exception:

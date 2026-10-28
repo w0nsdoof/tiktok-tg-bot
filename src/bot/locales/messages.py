@@ -63,7 +63,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
         "admin_access_request": (
             "Access request from {name} ({user_id}).\n"
-            "Username: @{username}"
+            "Username: {username}"
         ),
         "admin_approve_button": "Approve",
         "admin_deny_button": "Deny",
@@ -172,7 +172,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
         "admin_access_request": (
             "Запрос на доступ от {name} ({user_id}).\n"
-            "Username: @{username}"
+            "Username: {username}"
         ),
         "admin_approve_button": "Одобрить",
         "admin_deny_button": "Отклонить",
