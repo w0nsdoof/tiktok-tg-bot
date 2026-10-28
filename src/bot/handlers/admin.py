@@ -1,7 +1,9 @@
+import html
 from typing import cast
 
 import structlog
 from telegram import (
+    ForceReply,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     MessageOriginHiddenUser,
@@ -11,6 +13,7 @@ from telegram import (
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
+from bot.filters import relay_target
 from bot.locales.messages import get_message
 from bot.services.user_store import UserStore
 
@@ -32,9 +35,21 @@ async def handle_access_denied(
     user_store = _get_user_store(context)
 
     if user_store.has_pending_request(user.id):
-        await update.effective_message.reply_text(
-            get_message("access_already_requested", lang)
+        text = get_message(
+            "relay_from_user",
+            lang,
+            name=user.mention_html(),
+            user_id=user.id,
+            text=html.escape(update.effective_message.text or "", quote=False),
         )
+        for admin_id in user_store.get_admin_ids():
+            try:
+                await context.bot.send_message(
+                    chat_id=admin_id, text=text, parse_mode=ParseMode.HTML
+                )
+            except Exception:
+                log.exception("admin.notify_failed", admin_id=admin_id)
+        await update.effective_message.reply_text(get_message("relay_delivered", lang))
         return
 
     keyboard = [
@@ -104,6 +119,10 @@ async def handle_request_access_callback(
             InlineKeyboardButton(
                 get_message("admin_deny_button", lang),
                 callback_data=f"access:deny:{user.id}",
+            ),
+            InlineKeyboardButton(
+                get_message("admin_ask_button", lang),
+                callback_data=f"access:ask:{user.id}",
             ),
         ]
     ]
@@ -175,6 +194,51 @@ async def handle_access_callback(
         await query.edit_message_text(
             get_message("admin_denied", lang, name="User", user_id=target_id)
         )
+
+
+async def handle_relay_prompt(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Admin pressed Ask: prompt for a message the admin's reply will carry to the user."""
+    query = update.callback_query
+    if not query or not query.from_user or not query.data:
+        return
+    await query.answer()
+    admin = query.from_user
+    if not _get_user_store(context).is_admin(admin.id):
+        return
+    target_id = int(query.data.split(":")[2])
+    await context.bot.send_message(
+        chat_id=admin.id,
+        text=get_message("relay_prompt", admin.language_code, user_id=target_id),
+        reply_markup=ForceReply(),
+    )
+
+
+async def handle_relay_to_user(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Admin replied to a bot message naming a user: send the text to that user."""
+    message = update.effective_message
+    if not message or not update.effective_user or not message.text:
+        return
+    lang = update.effective_user.language_code
+    target_id = relay_target(message)
+    if target_id is None:
+        return
+    if not _get_user_store(context).has_pending_request(target_id):
+        await message.reply_text(get_message("relay_not_pending", lang, user_id=target_id))
+        return
+    try:
+        await context.bot.send_message(
+            chat_id=target_id,
+            text=get_message("relay_from_admin", lang, text=message.text),
+        )
+    except Exception:
+        log.warning("admin.relay_failed", user_id=target_id)
+        await message.reply_text(get_message("relay_failed", lang))
+        return
+    await message.reply_text(get_message("relay_sent", lang))
 
 
 async def handle_add_forward(

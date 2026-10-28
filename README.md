@@ -44,7 +44,9 @@ All variables are listed with defaults in [.env.example](.env.example). Notable 
 | `INSTAGRAM_COOKIES_FILE` | No | Netscape-format cookies file passed to yt-dlp for Instagram posts that require login |
 
 Access requests are handled in Telegram: new users tap "Request Access" and an admin approves
-or denies; forwarding a user's message to the bot whitelists them.
+or denies; forwarding a user's message to the bot whitelists them. Until then, an admin can talk
+to a pending user through the bot: "Ask" on the request, or a reply to any bot message naming
+the user, is sent to them, and their messages come back to every admin.
 
 ### Instagram cookies
 

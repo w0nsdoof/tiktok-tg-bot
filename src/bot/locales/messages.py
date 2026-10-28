@@ -67,6 +67,16 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
         "admin_approve_button": "Approve",
         "admin_deny_button": "Deny",
+        "admin_ask_button": "Ask",
+        "relay_prompt": "Reply to this message to write to the user ({user_id}).",
+        "relay_from_user": "{name} ({user_id}):\n{text}",
+        "relay_delivered": (
+            "Your message was sent to the admin. Their reply will appear here."
+        ),
+        "relay_from_admin": "Admin: {text}",
+        "relay_sent": "Sent.",
+        "relay_not_pending": "User {user_id} is no longer waiting for access.",
+        "relay_failed": "Couldn't deliver the message — the user may have blocked the bot.",
         "admin_approved": "User {name} ({user_id}) has been approved.",
         "admin_denied": "User {name} ({user_id}) has been denied.",
         "access_granted": (
@@ -176,6 +186,18 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
         "admin_approve_button": "Одобрить",
         "admin_deny_button": "Отклонить",
+        "admin_ask_button": "Спросить",
+        "relay_prompt": "Ответьте на это сообщение, чтобы написать пользователю ({user_id}).",
+        "relay_from_user": "{name} ({user_id}):\n{text}",
+        "relay_delivered": (
+            "Ваше сообщение отправлено администратору. Ответ придёт сюда."
+        ),
+        "relay_from_admin": "Админ: {text}",
+        "relay_sent": "Отправлено.",
+        "relay_not_pending": "Пользователь {user_id} больше не ожидает доступа.",
+        "relay_failed": (
+            "Не удалось доставить сообщение — возможно, пользователь заблокировал бота."
+        ),
         "admin_approved": "Пользователь {name} ({user_id}) одобрен.",
         "admin_denied": "Пользователь {name} ({user_id}) отклонён.",
         "access_granted": (

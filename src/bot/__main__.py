@@ -14,12 +14,14 @@ from telegram.ext import (
 )
 
 from bot.config import Settings
-from bot.filters import AdminFilter, NonWhitelistFilter, WhitelistFilter
+from bot.filters import AdminFilter, NonWhitelistFilter, RelayReplyFilter, WhitelistFilter
 from bot.handlers.admin import (
     handle_access_callback,
     handle_access_denied,
     handle_add_forward,
     handle_link,
+    handle_relay_prompt,
+    handle_relay_to_user,
     handle_request_access_callback,
     handle_start_denied,
 )
@@ -129,12 +131,21 @@ def main() -> None:
     app.add_handler(
         CallbackQueryHandler(handle_access_callback, pattern=r"^access:(approve|deny):\d+$")
     )
+    app.add_handler(CallbackQueryHandler(handle_relay_prompt, pattern=r"^access:ask:\d+$"))
     app.add_handler(
         CallbackQueryHandler(handle_request_access_callback, pattern=r"^request_access$")
     )
 
     # --- Admin: forwarded messages in private chat ---
     app.add_handler(MessageHandler(private & admin & filters.FORWARDED, handle_add_forward))
+
+    # --- Admin: replies to bot messages naming a user, relayed before the download flow ---
+    app.add_handler(
+        MessageHandler(
+            private & admin & filters.TEXT & ~filters.COMMAND & RelayReplyFilter(),
+            handle_relay_to_user,
+        )
+    )
 
     # --- Private chat: whitelisted users ---
     app.add_handler(CommandHandler("link", handle_link, filters=private))

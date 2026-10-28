@@ -19,8 +19,8 @@ asyncpg/PostgreSQL, FastAPI + Authlib, pydantic-settings, structlog.
 ## Layout
 
 - `src/bot/__main__.py` — handler/filter wiring, heartbeat and access-refresh jobs
-- `src/bot/handlers/` — private, group, inline, admin (access requests, `/link`), stats
-  (`/stats`, `/top`); `common.py` holds the shared download-and-send flow
+- `src/bot/handlers/` — private, group, inline, admin (access requests, admin↔pending-user
+  relay, `/link`), stats (`/stats`, `/top`); `common.py` holds the shared download-and-send flow
 - `src/bot/services/` — `downloader` (yt-dlp), `url_parser`, `format_parser`, `queue`,
   `user_store` (users, roles, runtime settings), `analytics` (writes), `stats` (reads)
 - `src/bot/web.py` — control panel (`bot.web:create_app`); `src/bot/locales/messages.py` — EN/RU text
